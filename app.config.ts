@@ -8,6 +8,10 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
+  ios: {
+    bundleIdentifier: 'com.noticatch.app',
+    supportsTablet: false,
+  },
   android: {
     package: 'com.noticatch.app',
     versionCode: 1,

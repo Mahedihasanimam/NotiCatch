@@ -1,0 +1,9 @@
+expo.modules.keepsake.keepsake-notifications-pngs-0 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/generated/res/pngs/release
+expo.modules.keepsake.keepsake-notifications-updated_navigation_xml-1 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/generated/updated_navigation_xml/release
+expo.modules.keepsake.keepsake-notifications-mergeReleaseResources-2 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+expo.modules.keepsake.keepsake-notifications-mergeReleaseResources-3 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+expo.modules.keepsake.keepsake-notifications-release-4 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/intermediates/merged_res/release/mergeReleaseResources
+expo.modules.keepsake.keepsake-notifications-release-5 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/build/intermediates/packaged_res/release/packageReleaseResources
+expo.modules.keepsake.keepsake-notifications-main-6 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/res
+expo.modules.keepsake.keepsake-notifications-release-7 /Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/release/res
+gradleHome-0 /Users/mehedihasan/.gradle

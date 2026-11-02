@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
-import { deleteNotifications, openAccessSettings, queryNotifications } from '@/data/repository';
+import { deleteNotifications, openAccessSettings, openAppSettings, queryNotifications } from '@/data/repository';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
 import { useSettings } from '@/store/settings';
@@ -100,7 +100,7 @@ export default function SettingsIndexScreen() {
             borderColor: granted ? '#0A6C74' : 'rgba(245, 158, 11, 0.4)',
             borderRadius: 14,
             padding: 14,
-            marginBottom: 20,
+            marginBottom: granted ? 20 : 12,
           }}
         >
           <Ionicons
@@ -133,6 +133,50 @@ export default function SettingsIndexScreen() {
             </View>
           ) : null}
         </PressableBounce>
+
+        {/* Helpful Unlock Card for Android 13+ / Xiaomi / HyperOS */}
+        {!granted ? (
+          <View
+            style={{
+              backgroundColor: '#2E323F',
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.08)',
+              padding: 14,
+              marginBottom: 20,
+              gap: 10,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="help-circle-outline" size={18} color="#14B8A6" />
+              <Text style={{ fontSize: 13.5, fontFamily: 'Manrope_700Bold', color: '#FFFFFF' }}>
+                Switch greyed out in settings?
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: 'Manrope_500Medium', color: '#9CA3AF', lineHeight: 18 }}>
+              On Android 13+ (especially Xiaomi / HyperOS / Samsung), sideloaded apps require one-time approval:
+              {'\n'}1. Tap "Open App Info" below
+              {'\n'}2. Tap ⋮ (3-dots) in top right ➔ "Allow restricted settings"
+              {'\n'}3. Return here and tap "Enable" above to turn on Notification Access.
+            </Text>
+            <PressableBounce
+              scaleTo={0.96}
+              onPress={() => void openAppSettings()}
+              style={{
+                backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                borderWidth: 1,
+                borderColor: 'rgba(20, 184, 166, 0.4)',
+                borderRadius: 8,
+                paddingVertical: 8,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 12.5, fontFamily: 'Manrope_700Bold', color: '#14B8A6' }}>
+                Open App Info
+              </Text>
+            </PressableBounce>
+          </View>
+        ) : null}
 
         {/* Security & Retention Section */}
         <Text
@@ -192,13 +236,13 @@ export default function SettingsIndexScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <Ionicons name="time-outline" size={22} color="#0D9488" />
+              <Ionicons name="timer-outline" size={22} color="#0D9488" />
               <View>
                 <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
                   Automatic Cleanup
                 </Text>
                 <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
-                  {retentionDays ? `Keep items for ${retentionDays} days` : 'Keep history forever (No auto-delete)'}
+                  {retentionDays === null ? 'Never delete automatically' : `Keep for ${retentionDays} days`}
                 </Text>
               </View>
             </View>
@@ -215,16 +259,44 @@ export default function SettingsIndexScreen() {
               justifyContent: 'space-between',
               paddingVertical: 16,
               paddingHorizontal: 18,
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(255,255,255,0.06)',
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <Ionicons name="cloud-upload-outline" size={22} color="#0D9488" />
+              <Ionicons name="download-outline" size={22} color="#0D9488" />
               <View>
                 <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
                   Backup & Export
                 </Text>
                 <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
-                  Export notifications as JSON or restore
+                  Export to CSV or encrypted JSON
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#7C8494" />
+          </PressableBounce>
+
+          {/* Item 4: Clear all notifications */}
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={handleClearAllHistory}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 16,
+              paddingHorizontal: 18,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <Ionicons name="trash-outline" size={22} color="#EF4444" />
+              <View>
+                <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#EF4444' }}>
+                  Clear All History
+                </Text>
+                <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
+                  Permanently delete all saved notifications
                 </Text>
               </View>
             </View>
@@ -232,7 +304,7 @@ export default function SettingsIndexScreen() {
           </PressableBounce>
         </View>
 
-        {/* General & Info Section */}
+        {/* General & About Section */}
         <Text
           style={{
             fontSize: 12.5,
@@ -243,11 +315,11 @@ export default function SettingsIndexScreen() {
             paddingHorizontal: 4,
           }}
         >
-          APP INFO & LEGAL
+          ABOUT & LEGAL
         </Text>
 
         <View style={{ backgroundColor: '#2E323F', borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
-          {/* Privacy Policy */}
+          {/* Item 1: Privacy policy */}
           <PressableBounce
             scaleTo={0.98}
             onPress={() => router.push('/settings/privacy' as any)}
@@ -263,14 +335,19 @@ export default function SettingsIndexScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <Ionicons name="shield-checkmark-outline" size={22} color="#0D9488" />
-              <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
-                Privacy Policy
-              </Text>
+              <View>
+                <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
+                  Privacy Policy
+                </Text>
+                <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
+                  How your data is kept safe on device
+                </Text>
+              </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#7C8494" />
           </PressableBounce>
 
-          {/* About */}
+          {/* Item 2: About NotiCatch */}
           <PressableBounce
             scaleTo={0.98}
             onPress={() => router.push('/settings/about' as any)}
@@ -284,38 +361,26 @@ export default function SettingsIndexScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <Ionicons name="information-circle-outline" size={22} color="#0D9488" />
-              <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
-                About NotiCatch
-              </Text>
+              <View>
+                <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
+                  About NotiCatch
+                </Text>
+                <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
+                  Version 1.0.0
+                </Text>
+              </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#7C8494" />
           </PressableBounce>
         </View>
 
-        {/* Danger Zone: Clear History */}
-        <PressableBounce
-          scaleTo={0.98}
-          onPress={handleClearAllHistory}
-          style={{
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            borderWidth: 1,
-            borderColor: 'rgba(239, 68, 68, 0.3)',
-            borderRadius: 16,
-            paddingVertical: 16,
-            paddingHorizontal: 18,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-          }}
-        >
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          <Text style={{ fontSize: 15, fontFamily: 'Manrope_700Bold', color: '#EF4444' }}>
-            Clear All History
+        {/* Footer info */}
+        <View style={{ alignItems: 'center', marginTop: 8 }}>
+          <Text style={{ fontSize: 12, color: '#7C8494', fontFamily: 'Manrope_500Medium' }}>
+            NotiCatch • Private & Local Notification History
           </Text>
-        </PressableBounce>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
