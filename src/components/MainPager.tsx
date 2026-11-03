@@ -43,7 +43,7 @@ const TABS = [
   },
 ];
 
-export function MainPager({ initialTab = 1 }: Props) {
+export function MainPager({ initialTab = 0 }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);

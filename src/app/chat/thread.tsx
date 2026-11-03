@@ -21,6 +21,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
 import {
   getConversationMessages,
+  openNotification,
   playAudio,
   playPreviewTone,
   queryNotifications,
@@ -595,13 +596,8 @@ export default function ChatThread() {
               const isVoice = isVoiceMessage(item, body);
               const isPhoto = isPhotoMessage(item, body);
 
-              // Discard mistakenly saved contact avatar from Messenger
-              const isBogusAvatar =
-                Boolean(item.mediaPath && item.mediaPath.includes('orca_')) &&
-                (body.toLowerCase().includes('photo') || body.includes('📷'));
-
               const validImageUri =
-                !isBogusAvatar && item.mediaPath && item.mediaType !== 'audio'
+                item.mediaPath && item.mediaType !== 'audio'
                   ? item.mediaPath.startsWith('file://')
                     ? item.mediaPath
                     : `file://${item.mediaPath}`
@@ -662,7 +658,9 @@ export default function ChatThread() {
                       {/* Bubble Container matching Image 2 (#2E323F) */}
                       <PressableBounce
                         scaleTo={0.98}
-                        onLongPress={() => shareMessage(item)}
+                        onPress={() => {
+                          void openNotification(item.sbnKey, `${packageName}:${title}`, packageName);
+                        }}
                         style={{
                           backgroundColor: '#2E323F',
                           borderRadius: 14,
@@ -728,7 +726,6 @@ export default function ChatThread() {
                               style={{
                                 borderRadius: 12,
                                 overflow: 'hidden',
-                                position: 'relative',
                               }}
                             >
                               <Image
@@ -741,24 +738,6 @@ export default function ChatThread() {
                                 }}
                                 resizeMode="cover"
                               />
-                              <PressableBounce
-                                onPress={() => shareMessage(item)}
-                                hitSlop={8}
-                                scaleTo={0.9}
-                                style={{
-                                  position: 'absolute',
-                                  bottom: 8,
-                                  right: 8,
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: 14,
-                                  backgroundColor: 'rgba(0,0,0,0.65)',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
-                              </PressableBounce>
                             </Pressable>
                           </View>
                         ) : isPhoto ? (
@@ -799,7 +778,7 @@ export default function ChatThread() {
           />
         )}
 
-        {/* 3. Bottom Bar: Smart Action Bar */}
+        {/* 3. Bottom Bar: Smart Quick Reply */}
         {isChatApp ? (
           <View
             style={{
@@ -844,46 +823,7 @@ export default function ChatThread() {
               <Ionicons name="paper-plane" size={22} color="#FFFFFF" />
             </PressableBounce>
           </View>
-        ) : (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-around',
-              backgroundColor: '#20232C',
-              borderTopWidth: 1,
-              borderTopColor: 'rgba(255,255,255,0.06)',
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-            }}
-          >
-            <PressableBounce
-              onPress={() => {
-                if (messages.length > 0) shareMessage(messages[messages.length - 1]!);
-              }}
-              scaleTo={0.94}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}
-            >
-              <Ionicons name="share-outline" size={20} color="#FFFFFF" />
-              <Text style={{ fontSize: 13, color: '#FFFFFF', fontFamily: 'Manrope_600SemiBold' }}>
-                Share
-              </Text>
-            </PressableBounce>
-
-            <PressableBounce
-              onPress={() => {
-                showAppToast(`Opening in ${appName || 'App'}...`);
-              }}
-              scaleTo={0.94}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 }}
-            >
-              <Ionicons name="open-outline" size={20} color="#FFFFFF" />
-              <Text style={{ fontSize: 13, color: '#FFFFFF', fontFamily: 'Manrope_600SemiBold' }}>
-                Open App
-              </Text>
-            </PressableBounce>
-          </View>
-        )}
+        ) : null}
       </KeyboardAvoidingView>
       {/* Fullscreen Image Preview Modal */}
       <Modal

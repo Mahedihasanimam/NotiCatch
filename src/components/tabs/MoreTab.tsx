@@ -30,6 +30,13 @@ export function MoreTab() {
   };
 
   const handleOpenHelp = () => {
+    const url = 'mailto:teamriskmade@gmail.com?subject=NotiCatch%20Support%20Request';
+    Linking.openURL(url).catch(() => {
+      showAppToast('Could not open email app');
+    });
+  };
+
+  const handleOpenAbout = () => {
     router.push('/settings/about' as any);
   };
 
@@ -334,6 +341,42 @@ export function MoreTab() {
               }}
             >
               Help & Support
+            </Text>
+          </PressableBounce>
+
+          {/* Privacy Policy */}
+          <PressableBounce
+            scaleTo={0.97}
+            onPress={() => router.push('/settings/privacy' as any)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}
+          >
+            <Ionicons name="shield-checkmark-outline" size={26} color="#FFFFFF" />
+            <Text
+              style={{
+                fontFamily: 'Manrope_600SemiBold',
+                fontSize: 16,
+                color: '#FFFFFF',
+              }}
+            >
+              Privacy Policy
+            </Text>
+          </PressableBounce>
+
+          {/* About */}
+          <PressableBounce
+            scaleTo={0.97}
+            onPress={handleOpenAbout}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}
+          >
+            <Ionicons name="information-circle-outline" size={26} color="#FFFFFF" />
+            <Text
+              style={{
+                fontFamily: 'Manrope_600SemiBold',
+                fontSize: 16,
+                color: '#FFFFFF',
+              }}
+            >
+              About
             </Text>
           </PressableBounce>
         </View>

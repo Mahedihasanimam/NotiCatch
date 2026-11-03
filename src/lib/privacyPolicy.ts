@@ -10,6 +10,6 @@ export const PRIVACY_POLICY = {
     { heading: 'Your controls', body: 'You can exclude apps, pause capture, delete single items or everything, set automatic deletion, lock the app with a PIN or biometrics, and revoke notification access at any time in Android settings. Uninstalling the app or clearing its data erases the saved history.' },
     { heading: 'Sensitive content', body: 'Notifications can contain private messages, codes and personal details. Use the PIN lock and exclude apps you do not want stored. NotiCatch does not monitor you for anyone else and has no hidden mode.' },
     { heading: 'Children', body: 'NotiCatch is not directed at children under 13.' },
-    { heading: 'Changes and contact', body: 'If this policy changes, the updated version ships inside the app. Contact: [add your support email before publishing].' },
+    { heading: 'Changes and contact', body: 'If this policy changes, the updated version ships inside the app. Contact: teamriskmade@gmail.com.' },
   ],
 } as const;

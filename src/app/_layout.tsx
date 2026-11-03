@@ -122,25 +122,11 @@ function Shell() {
             />
             <Stack.Screen
               name="settings/privacy"
-              options={{
-                headerShown: true,
-                title: 'Privacy policy',
-                headerStyle: { backgroundColor: colors.bg },
-                headerTintColor: colors.text,
-                headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 },
-                headerShadowVisible: false,
-              }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="settings/about"
-              options={{
-                headerShown: true,
-                title: 'About',
-                headerStyle: { backgroundColor: colors.bg },
-                headerTintColor: colors.text,
-                headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 },
-                headerShadowVisible: false,
-              }}
+              options={{ headerShown: false }}
             />
           </Stack.Protected>
         </Stack>

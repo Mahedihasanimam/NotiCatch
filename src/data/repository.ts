@@ -98,6 +98,14 @@ export async function sendReply(sbnKey: string | null, chatKey: string | null, t
   return getNative() ? requireNative().sendReply(sbnKey, chatKey, text) : false;
 }
 
+export async function openNotification(
+  sbnKey: string | null,
+  chatKey: string | null = null,
+  packageName: string | null = null,
+): Promise<boolean> {
+  return getNative() ? requireNative().openNotification(sbnKey, chatKey, packageName) : false;
+}
+
 export async function getInstalledApps(): Promise<InstalledApp[]> {
   return JSON.parse(await requireNative().getInstalledApps()) as InstalledApp[];
 }

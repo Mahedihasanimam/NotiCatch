@@ -174,12 +174,15 @@ class KeepsakeNotificationsModule : Module() {
       db.stats(parseIds(dayStartsJson), dayEnd.toLong()).toString()
     }
 
-    // ---- direct reply ---------------------------------------------------------------------
+    // ---- direct reply & open notification --------------------------------------------------
     AsyncFunction("canReply") { sbnKey: String?, chatKey: String? ->
       ReplyManager.canReply(sbnKey, chatKey)
     }
     AsyncFunction("sendReply") { sbnKey: String?, chatKey: String?, text: String ->
       ReplyManager.sendReply(context, sbnKey, chatKey, text)
+    }
+    AsyncFunction("openNotification") { sbnKey: String?, chatKey: String?, packageName: String? ->
+      ReplyManager.openNotification(context, sbnKey, chatKey, packageName)
     }
 
     // ---- writes ---------------------------------------------------------------------------

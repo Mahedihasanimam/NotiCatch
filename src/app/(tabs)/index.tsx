@@ -1,5 +1,5 @@
 import { MainPager } from '@/components/MainPager';
 
 export default function Home() {
-  return <MainPager initialTab={1} />;
+  return <MainPager initialTab={0} />;
 }

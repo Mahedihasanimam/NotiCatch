@@ -21,6 +21,7 @@ import {
   canReply,
   deleteNotifications,
   getNotification,
+  openNotification,
   sendReply,
   setArchived,
   setFavorite,
@@ -216,11 +217,6 @@ export default function NotificationDetail() {
             />
           </PressableBounce>
 
-          {/* Share */}
-          <PressableBounce scaleTo={0.9} hitSlop={8} onPress={share}>
-            <Ionicons name="share-outline" size={22} color="#FFFFFF" />
-          </PressableBounce>
-
           {/* Delete */}
           <PressableBounce scaleTo={0.9} hitSlop={8} onPress={handleDelete}>
             <Ionicons name="trash-outline" size={22} color="#EF4444" />
@@ -237,7 +233,15 @@ export default function NotificationDetail() {
           showsVerticalScrollIndicator={false}
         >
           {/* 2. Sender Card */}
-          <View
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={() => {
+              void openNotification(
+                n.sbnKey,
+                n.title ? `${n.packageName}:${n.title}` : null,
+                n.packageName,
+              );
+            }}
             style={{
               backgroundColor: '#2E323F',
               borderRadius: 16,
@@ -271,7 +275,7 @@ export default function NotificationDetail() {
                 {formatDateTime(n.postedAt)}
               </Text>
             </View>
-          </View>
+          </PressableBounce>
 
           {/* 3. Deleted Message Notice Banner (if message was deleted by sender) */}
           {n.isDeleted ? (
@@ -302,7 +306,15 @@ export default function NotificationDetail() {
           ) : null}
 
           {/* 4. Message Content Body Card */}
-          <View
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={() => {
+              void openNotification(
+                n.sbnKey,
+                n.title ? `${n.packageName}:${n.title}` : null,
+                n.packageName,
+              );
+            }}
             style={{
               backgroundColor: '#2E323F',
               borderRadius: 16,
@@ -377,7 +389,7 @@ export default function NotificationDetail() {
                 />
               </View>
             ) : null}
-          </View>
+          </PressableBounce>
 
           {/* 5. Direct Reply Card */}
           <View

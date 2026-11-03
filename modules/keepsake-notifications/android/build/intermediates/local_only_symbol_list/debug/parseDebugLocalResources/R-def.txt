@@ -1,4 +1,5 @@
 R_DEF: Internal format may change without notice
 local
+drawable ic_stat_noticatch
 drawable ic_status_bell
 string app_name

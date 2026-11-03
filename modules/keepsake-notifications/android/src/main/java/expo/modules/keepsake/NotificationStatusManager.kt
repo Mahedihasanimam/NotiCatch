@@ -87,7 +87,8 @@ object NotificationStatusManager {
       )
 
       val smallIconRes = try {
-        R.drawable.ic_stat_noticatch
+        val resId = context.resources.getIdentifier("ic_stat_noticatch", "drawable", context.packageName)
+        if (resId != 0) resId else expo.modules.keepsake.R.drawable.ic_stat_noticatch
       } catch (_: Exception) {
         val resId = context.resources.getIdentifier("ic_stat_noticatch", "drawable", context.packageName)
         if (resId != 0) resId else (if (context.applicationInfo.icon != 0) context.applicationInfo.icon else android.R.drawable.ic_dialog_info)

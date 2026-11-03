@@ -32,6 +32,7 @@ declare class KeepsakeNotificationsModule extends NativeModule<Events> {
   getStats(dayStartsJson: string, dayEnd: number): Promise<string>;
   canReply(sbnKey: string | null, chatKey: string | null): Promise<boolean>;
   sendReply(sbnKey: string | null, chatKey: string | null, text: string): Promise<boolean>;
+  openNotification(sbnKey: string | null, chatKey: string | null, packageName: string | null): Promise<boolean>;
   setFavorite(idsJson: string, value: boolean): Promise<number>;
   setArchived(idsJson: string, value: boolean): Promise<number>;
   deleteByIds(idsJson: string): Promise<number>;
