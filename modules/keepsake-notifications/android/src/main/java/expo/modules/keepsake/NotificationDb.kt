@@ -211,6 +211,23 @@ class NotificationDb private constructor(context: Context) :
     return readableDatabase.rawQuery("SELECT COUNT(*) FROM notifications $where", c.args).use { if (it.moveToFirst()) it.getInt(0) else 0 }
   }
 
+  fun totalUnarchivedCount(): Int = synchronized(lock) {
+    readableDatabase.rawQuery("SELECT COUNT(*) FROM notifications WHERE is_archived = 0", null).use {
+      if (it.moveToFirst()) it.getInt(0) else 0
+    }
+  }
+
+  fun getLatestCapturedApp(): Pair<String, Long>? = synchronized(lock) {
+    readableDatabase.rawQuery(
+      "SELECT package_name, posted_at FROM notifications WHERE is_archived = 0 ORDER BY posted_at DESC, id DESC LIMIT 1",
+      null,
+    ).use {
+      if (it.moveToNext()) {
+        it.getString(0) to it.getLong(1)
+      } else null
+    }
+  }
+
   fun getByIds(ids: List<Long>): JSONArray {
     val out = JSONArray()
     ids.chunked(500).forEach { chunk ->

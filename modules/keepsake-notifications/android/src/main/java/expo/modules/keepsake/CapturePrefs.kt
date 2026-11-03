@@ -14,6 +14,7 @@ class CapturePrefs(context: Context) {
   val retentionDays: Int get() = prefs.getInt("retentionDays", 0) // 0 = never
   val keepFavorites: Boolean get() = prefs.getBoolean("keepFavorites", true)
   val keepArchived: Boolean get() = prefs.getBoolean("keepArchived", true)
+  val statusBarNotification: Boolean get() = prefs.getBoolean("statusBarNotification", true)
   val excluded: Set<String> get() = prefs.getStringSet("excluded", emptySet()) ?: emptySet()
 
   fun apply(json: String) {
@@ -28,6 +29,7 @@ class CapturePrefs(context: Context) {
       .putInt("retentionDays", o.optInt("retentionDays", 0))
       .putBoolean("keepFavorites", o.optBoolean("keepFavorites", true))
       .putBoolean("keepArchived", o.optBoolean("keepArchived", true))
+      .putBoolean("statusBarNotification", o.optBoolean("statusBarNotification", true))
       .putStringSet("excluded", excludedSet)
       .apply()
   }

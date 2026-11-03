@@ -45,11 +45,11 @@ const config: ExpoConfig = {
       {
         android: {
           compileSdkVersion: 37,
-          targetSdkVersion: 36,
+          targetSdkVersion: 35,
           buildToolsVersion: '37.0.0',
-          minSdkVersion: 29,
-          enableMinifyInReleaseBuilds: true,
-          enableShrinkResourcesInReleaseBuilds: true,
+          minSdkVersion: 26,
+          enableMinifyInReleaseBuilds: false,
+          enableShrinkResourcesInReleaseBuilds: false,
           useLegacyPackaging: false,
         },
       },

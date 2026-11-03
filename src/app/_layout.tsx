@@ -9,6 +9,7 @@ import { LockScreen } from '@/components/LockScreen';
 import { GlobalDialogOverlay } from '@/components/CustomDialog';
 import { Text } from '@/components/ui';
 import { clearDemoData } from '@/data/demoData';
+import { requestNotificationPermission } from '@/data/repository';
 import { startAppStateHandling, startNativeSync, startSecureScreenSync, runRetentionCleanup } from '@/data/lifecycle';
 import { useAccess } from '@/store/access';
 import { startChangeBridge } from '@/store/dataVersion';
@@ -31,6 +32,7 @@ function Shell() {
     void useAccess.getState().refresh();
     void runRetentionCleanup();
     void clearDemoData();
+    void requestNotificationPermission();
     const disposers = [startNativeSync(), startChangeBridge(), startAppStateHandling(), startSecureScreenSync()];
     // Capture state can change while we are in the foreground (user toggles access in settings overlay).
     return () => disposers.forEach((d) => d());

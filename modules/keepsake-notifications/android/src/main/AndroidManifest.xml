@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
   <!-- Needed to resolve launcher apps (names + icons) without QUERY_ALL_PACKAGES. -->
   <queries>
     <intent>

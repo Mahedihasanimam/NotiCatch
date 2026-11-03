@@ -13,6 +13,7 @@ export interface CaptureConfig {
   keepFavorites: boolean;
   keepArchived: boolean;
   excludedPackages: string[];
+  statusBarNotification: boolean;
 }
 
 export type ChangeType = 'posted' | 'removed' | 'updated' | 'cleanup' | 'connected' | 'disconnected';
@@ -36,9 +37,12 @@ const ids = (list: number[]) => JSON.stringify(list);
 
 export const isNativeAvailable = (): boolean => getNative() !== null;
 export const isAccessGranted = async (): Promise<boolean> => (getNative() ? requireNative().isAccessGranted() : false);
+export const postTestNotification = async (): Promise<boolean> => (getNative() ? requireNative().postTestNotification() : false);
 export const openAccessSettings = (): Promise<void> => requireNative().openAccessSettings();
 export const openAppSettings = (): Promise<void> => requireNative().openAppSettings();
 export const requestRebind = (): Promise<void> => requireNative().requestRebind();
+export const updateStatusNotification = (): Promise<void> => (getNative() ? requireNative().updateStatusNotification() : Promise.resolve());
+export const requestNotificationPermission = (): Promise<void> => (getNative() ? requireNative().requestNotificationPermission() : Promise.resolve());
 export const configureCapture = (c: CaptureConfig): Promise<void> => requireNative().configure(JSON.stringify(c));
 
 export function subscribeToChanges(cb: (type: ChangeType) => void): () => void {

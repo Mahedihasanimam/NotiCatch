@@ -22,6 +22,7 @@ export interface SettingsData {
   secureScreen: boolean;
   isPro: boolean;
   trialStartedAt: number | null;
+  statusBarNotification: boolean;
 }
 
 export interface SettingsState extends SettingsData {
@@ -49,12 +50,32 @@ export const DEFAULT_SETTINGS: SettingsData = {
   secureScreen: false,
   isPro: false,
   trialStartedAt: null,
+  statusBarNotification: true,
 };
 
 const kvStorage = createJSONStorage(() => ({
-  getItem: (k: string) => KV.getItemSync(k),
-  setItem: (k: string, v: string) => KV.setItemSync(k, v),
-  removeItem: (k: string) => KV.removeItemSync(k),
+  getItem: (k: string) => {
+    try {
+      return KV.getItemSync(k);
+    } catch (e) {
+      console.warn('kvStorage.getItemSync failed:', e);
+      return null;
+    }
+  },
+  setItem: (k: string, v: string) => {
+    try {
+      KV.setItemSync(k, v);
+    } catch (e) {
+      console.warn('kvStorage.setItemSync failed:', e);
+    }
+  },
+  removeItem: (k: string) => {
+    try {
+      KV.removeItemSync(k);
+    } catch (e) {
+      console.warn('kvStorage.removeItemSync failed:', e);
+    }
+  },
 }));
 
 export const useSettings = create<SettingsState>()(
@@ -84,6 +105,7 @@ export const useSettings = create<SettingsState>()(
         keepFavorites: s.keepFavorites, keepArchived: s.keepArchived, excludedPackages: s.excludedPackages,
         lockEnabled: s.lockEnabled, biometricEnabled: s.biometricEnabled, lockDelayMs: s.lockDelayMs,
         secureScreen: s.secureScreen, isPro: s.isPro, trialStartedAt: s.trialStartedAt,
+        statusBarNotification: s.statusBarNotification,
       }),
     },
   ),
@@ -98,5 +120,6 @@ export function toCaptureConfig(s: SettingsData) {
     keepFavorites: s.keepFavorites,
     keepArchived: s.keepArchived,
     excludedPackages: s.excludedPackages,
+    statusBarNotification: s.statusBarNotification,
   };
 }

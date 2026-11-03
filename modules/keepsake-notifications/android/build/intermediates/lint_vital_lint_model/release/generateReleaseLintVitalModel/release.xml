@@ -1,11 +1,12 @@
 <variant
     name="release"
     package="expo.modules.keepsake"
-    minSdkVersion="29"
+    minSdkVersion="26"
     targetSdkVersion="37.0"
     mergedManifest="build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml"
     manifestMergeReport="build/outputs/logs/manifest-merger-release-report.txt"
     proguardFiles="build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1"
+    consumerProguardFiles="consumer-rules.pro"
     partialResultsDir="build/intermediates/lint_vital_partial_results/release/lintVitalAnalyzeRelease/out">
   <buildFeatures/>
   <sourceProviders>
@@ -26,6 +27,6 @@
       type="MAIN"
       applicationId="expo.modules.keepsake"
       generatedSourceFolders="build/generated/ap_generated_sources/release/out"
-      desugaredMethodsFiles="/Users/mehedihasan/.gradle/caches/9.4.1/transforms/638a0a0b862310cd5d2f881d2520c0c5/transformed/D8BackportedDesugaredMethods.txt">
+      desugaredMethodsFiles="/Users/mehedihasan/.gradle/caches/9.4.1/transforms/83b72c679375826813c8a1f754b1d7fe/transformed/D8BackportedDesugaredMethods.txt">
   </artifact>
 </variant>

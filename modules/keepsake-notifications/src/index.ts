@@ -16,6 +16,9 @@ type Events = { onChange: (event: { type: NativeChangeType }) => void };
  */
 declare class KeepsakeNotificationsModule extends NativeModule<Events> {
   isAccessGranted(): Promise<boolean>;
+  postTestNotification(): Promise<boolean>;
+  updateStatusNotification(): Promise<void>;
+  requestNotificationPermission(): Promise<void>;
   openAccessSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
   requestRebind(): Promise<void>;

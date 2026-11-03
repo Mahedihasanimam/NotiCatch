@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
-import { deleteNotifications, openAccessSettings, openAppSettings, queryNotifications } from '@/data/repository';
+import { configureCapture, deleteNotifications, openAccessSettings, openAppSettings, postTestNotification, queryNotifications } from '@/data/repository';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
-import { useSettings } from '@/store/settings';
+import { toCaptureConfig, useSettings } from '@/store/settings';
 
 export default function SettingsIndexScreen() {
   const { top, bottom } = useSafeAreaInsets();
@@ -16,6 +16,8 @@ export default function SettingsIndexScreen() {
   const granted = useAccess((s) => s.granted);
   const lockEnabled = useSettings((s) => s.lockEnabled);
   const retentionDays = useSettings((s) => s.retentionDays);
+  const statusBarNotification = useSettings((s) => s.statusBarNotification);
+  const updateSettings = useSettings((s) => s.update);
 
   const handleClearAllHistory = () => {
     showAppConfirm(
@@ -133,6 +135,83 @@ export default function SettingsIndexScreen() {
             </View>
           ) : null}
         </PressableBounce>
+
+        {/* Show on Notification Bar (matching Notisave screenshot) */}
+        <View
+          style={{
+            backgroundColor: '#2E323F',
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+            padding: 14,
+            marginBottom: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 10 }}>
+            <Ionicons name="notifications" size={22} color="#0D9488" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 14 }}>
+                Show in Notification Bar
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                Display ongoing status with saved count in Android's notification shade (like Notisave).
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={statusBarNotification}
+            onValueChange={(val) => {
+              updateSettings({ statusBarNotification: val });
+              void configureCapture(toCaptureConfig({ ...useSettings.getState(), statusBarNotification: val }));
+            }}
+            trackColor={{ false: '#4B5563', true: '#0A6C74' }}
+            thumbColor={statusBarNotification ? '#FFFFFF' : '#9CA3AF'}
+          />
+        </View>
+
+        {granted ? (
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={async () => {
+              try {
+                const ok = await postTestNotification();
+                if (ok) {
+                  showAppToast('Test notification posted! Check your status bar & home screen.');
+                  bump();
+                } else {
+                  showAppToast('Could not post test notification', 'error');
+                }
+              } catch {
+                showAppToast('Failed to post test notification', 'error');
+              }
+            }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              backgroundColor: '#2E323F',
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.08)',
+              padding: 14,
+              marginBottom: 20,
+            }}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#0A6C74" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 14 }}>
+                Send Test Notification
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                Post a test notification to verify that capture is working properly.
+              </Text>
+            </View>
+            <Ionicons name="paper-plane-outline" size={18} color="#0A6C74" />
+          </PressableBounce>
+        ) : null}
 
         {/* Helpful Unlock Card for Android 13+ / Xiaomi / HyperOS */}
         {!granted ? (

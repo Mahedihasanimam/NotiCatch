@@ -20,10 +20,26 @@ class KeepsakeListenerService : NotificationListenerService() {
   // Single thread => captures are processed in order and never block the binder thread.
   private val worker = Executors.newSingleThreadExecutor()
 
+  private fun runOnWorker(action: () -> Unit) {
+    if (!worker.isShutdown && !worker.isTerminated) {
+      try {
+        worker.execute {
+          try {
+            action()
+          } catch (e: Exception) {
+            Log.w(TAG, "Worker task failed", e)
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(TAG, "Failed to submit worker task", e)
+      }
+    }
+  }
+
   override fun onListenerConnected() {
     super.onListenerConnected()
     ReplyManager.serviceInstance = this
-    worker.execute {
+    runOnWorker {
       try {
         // Recover anything posted while we were disconnected (reboot, rebind, revoked-then-granted).
         activeNotifications?.forEach { capture(it) }
@@ -32,26 +48,25 @@ class KeepsakeListenerService : NotificationListenerService() {
         Log.w(TAG, "Initial sync failed", e)
       }
       ChangeBus.emit("connected")
+      NotificationStatusManager.updateStatus(this@KeepsakeListenerService)
     }
   }
 
   override fun onListenerDisconnected() {
     super.onListenerDisconnected()
     ChangeBus.emit("disconnected")
-    // Ask the system to bind us again (no-op if access was revoked).
-    try {
-      requestRebind(ComponentName(this, KeepsakeListenerService::class.java))
-    } catch (e: Exception) {
-      Log.w(TAG, "Rebind request failed", e)
-    }
+    // NOTE: NEVER call requestRebind here!
+    // Calling requestRebind inside onListenerDisconnected causes an infinite connect-disconnect loop,
+    // which drains battery rapidly and heats up physical devices.
   }
 
   override fun onNotificationPosted(sbn: StatusBarNotification?) {
     if (sbn == null) return
-    worker.execute {
+    runOnWorker {
       try {
         if (capture(sbn)) {
           ChangeBus.emit("posted")
+          NotificationStatusManager.updateStatus(this@KeepsakeListenerService)
           maybeCleanup(force = false)
         }
       } catch (e: Exception) {
@@ -62,10 +77,11 @@ class KeepsakeListenerService : NotificationListenerService() {
 
   override fun onNotificationRemoved(sbn: StatusBarNotification?, rankingMap: RankingMap?, reason: Int) {
     if (sbn == null) return
-    worker.execute {
+    runOnWorker {
       try {
         NotificationDb.get(this).markRemoved(sbn.key, reason, System.currentTimeMillis())
         ChangeBus.emit("removed")
+        NotificationStatusManager.updateStatus(this@KeepsakeListenerService)
       } catch (e: Exception) {
         Log.w(TAG, "Remove tracking failed", e)
       }
@@ -76,7 +92,9 @@ class KeepsakeListenerService : NotificationListenerService() {
     if (ReplyManager.serviceInstance == this) {
       ReplyManager.serviceInstance = null
     }
-    worker.shutdown()
+    try {
+      worker.shutdown()
+    } catch (_: Exception) {}
     super.onDestroy()
   }
 
@@ -85,23 +103,72 @@ class KeepsakeListenerService : NotificationListenerService() {
     val prefs = CapturePrefs(this)
     if (!prefs.captureEnabled) return false
     val pkg = sbn.packageName ?: return false
-    if (pkg == packageName || prefs.excluded.contains(pkg)) return false
-
     val n = sbn.notification ?: return false
-    val ongoing = n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
-    if (ongoing && !prefs.captureOngoing) return false
-    val summary = n.flags and Notification.FLAG_GROUP_SUMMARY != 0
-    if (summary && prefs.skipGroupSummary) return false
+    val x: Bundle = n.extras ?: Bundle()
 
-    val x: Bundle = n.extras ?: return false
-    val title = (x.getCharSequence(Notification.EXTRA_TITLE) ?: x.getCharSequence(Notification.EXTRA_TITLE_BIG))?.toString()?.trim()
+    val isTestNotif = x.getBoolean("expo.modules.keepsake.IS_TEST", false)
+    if (!isTestNotif && (pkg == packageName || prefs.excluded.contains(pkg))) return false
+
+    val ongoing = n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
+    if (ongoing && !prefs.captureOngoing && !isTestNotif) return false
+
+    var title = (x.getCharSequence(Notification.EXTRA_TITLE) ?: x.getCharSequence(Notification.EXTRA_TITLE_BIG))?.toString()?.trim()
     var text = x.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
     val big = x.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()
     val sub = x.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.trim()
+
+    // 1. If text is empty, check text lines
     if (text.isNullOrEmpty()) {
       text = x.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n") { it.toString() }?.trim()
     }
-    // Nothing readable (content hidden/redacted by the system or never provided): nothing to save.
+
+    // 2. MessagingStyle extraction (WhatsApp, Telegram, Google Messages, Signal)
+    if (text.isNullOrEmpty()) {
+      try {
+        val messages = x.getParcelableArray(Notification.EXTRA_MESSAGES)
+        if (messages != null && messages.isNotEmpty()) {
+          val lastMsg = messages.lastOrNull()
+          if (lastMsg is Bundle) {
+            val msgText = lastMsg.getCharSequence("text")?.toString()?.trim()
+            if (!msgText.isNullOrEmpty()) {
+              text = msgText
+            }
+            if (title.isNullOrEmpty()) {
+              val sender = lastMsg.getCharSequence("sender")?.toString()?.trim()
+              if (!sender.isNullOrEmpty()) {
+                title = sender
+              }
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(TAG, "EXTRA_MESSAGES extraction failed", e)
+      }
+    }
+
+    // 3. Fallback to conversation title or ticker text
+    if (title.isNullOrEmpty()) {
+      title = x.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()?.trim()
+    }
+    if (text.isNullOrEmpty()) {
+      text = x.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString()?.trim()
+    }
+    if (text.isNullOrEmpty() && n.tickerText != null) {
+      text = n.tickerText.toString().trim()
+    }
+
+    // If still missing title, use the app label
+    if (title.isNullOrEmpty()) {
+      title = AppCatalog.label(packageManager, pkg)
+    }
+
+    // Skip empty group summary headers only if they carry no actual message content
+    val summary = n.flags and Notification.FLAG_GROUP_SUMMARY != 0
+    if (summary && prefs.skipGroupSummary && !isTestNotif && text.isNullOrEmpty() && big.isNullOrEmpty()) {
+      return false
+    }
+
+    // Nothing readable at all: nothing to save
     if (title.isNullOrEmpty() && text.isNullOrEmpty() && big.isNullOrEmpty()) return false
 
     // Cache direct reply action for inline replying from the app
@@ -113,7 +180,7 @@ class KeepsakeListenerService : NotificationListenerService() {
       NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
     }
 
-    // Try extracting media picture from the notification
+    // Try extracting genuine media picture from the notification (BigPictureStyle)
     var mediaPath: String? = null
     var mediaType: String? = null
     try {
@@ -123,15 +190,9 @@ class KeepsakeListenerService : NotificationListenerService() {
         @Suppress("DEPRECATION")
         x.getParcelable(Notification.EXTRA_PICTURE) as? android.graphics.Bitmap
       }
-      if (bmp != null) {
+      if (bmp != null && bmp.width > 32 && bmp.height > 32) {
         mediaPath = MediaSaver.saveBitmap(this, bmp, pkg.substringAfterLast('.'))
         mediaType = "image"
-      } else if (android.os.Build.VERSION.SDK_INT >= 31) {
-        val icon = x.getParcelable(Notification.EXTRA_PICTURE_ICON, android.graphics.drawable.Icon::class.java)
-        if (icon != null) {
-          mediaPath = MediaSaver.saveIcon(this, icon, pkg.substringAfterLast('.'))
-          if (mediaPath != null) mediaType = "image"
-        }
       }
     } catch (e: Exception) {
       Log.w(TAG, "Media extraction failed", e)
