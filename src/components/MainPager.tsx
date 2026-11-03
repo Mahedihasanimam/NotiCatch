@@ -58,7 +58,7 @@ export function MainPager({ initialTab = 1 }: Props) {
   const { data: conversations } = useLiveQuery(getConversations, []);
 
   const hasUnreadNotifications = (unreadNotifs?.length ?? 0) > 0;
-  const hasUnreadMessages = (conversations ?? []).some((c) => c.count > 0);
+  const hasUnreadMessages = (conversations ?? []).some((c) => (c.unreadCount ?? 0) > 0);
 
   // Handle initial tab positioning
   useEffect(() => {
@@ -185,7 +185,7 @@ export function MainPager({ initialTab = 1 }: Props) {
                       width: 7,
                       height: 7,
                       borderRadius: 3.5,
-                      backgroundColor: '#0A6C74',
+                      backgroundColor: '#EF4444',
                       borderWidth: 1.5,
                       borderColor: '#232630',
                     }}

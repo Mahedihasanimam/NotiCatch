@@ -43,10 +43,13 @@ export default function NotificationDetail() {
 
   useEffect(() => {
     if (n) {
+      if (!n.isArchived) {
+        void setArchived([n.id], true).then(() => bump());
+      }
       const chatKey = n.title ? `${n.packageName}:${n.title}` : null;
       void canReply(n.sbnKey, chatKey).then(setReplyAvailable);
     }
-  }, [n]);
+  }, [n?.id, n?.isArchived]);
 
   if (loading) {
     return (

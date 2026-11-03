@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
+  Image,
   RefreshControl,
   TextInput,
   View,
@@ -13,7 +14,7 @@ import { Avatar } from '@/components/Avatar';
 import { PressableBounce } from '@/components/PressableBounce';
 import { EmptyState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
-import { getConversations, queryNotifications } from '@/data/repository';
+import { getConversations, queryNotifications, setArchived } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
 import type { Conversation, NotificationRecord } from '@/lib/types';
 import { useDataVersion } from '@/store/dataVersion';
@@ -48,9 +49,19 @@ export default function AppChatsScreen() {
 
   const { data: allConversations, loading: convsLoading } = useLiveQuery(getConversations, []);
   const { data: allNotifications, loading: notifsLoading } = useLiveQuery(
-    () => queryNotifications({ packages: [packageName], limit: 100 }),
+    () => queryNotifications({ packages: [packageName], archived: 'include', limit: 300 }),
     [packageName],
   );
+
+  // Mark all unread notifications for this app as read
+  useEffect(() => {
+    if (allNotifications && allNotifications.length > 0) {
+      const unreadIds = allNotifications.filter((n) => !n.isArchived).map((n) => n.id);
+      if (unreadIds.length > 0) {
+        void setArchived(unreadIds, true).then(() => bump());
+      }
+    }
+  }, [allNotifications]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -292,28 +303,17 @@ export default function AppChatsScreen() {
                     {item.lastMessage ?? 'New message'}
                   </Text>
 
-                  {/* Red circular outline unread badge matching Screenshot 5 */}
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 1.5,
-                      borderColor: '#0D9488',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text
+                  {/* Red dot for unread conversation */}
+                  {(item.unreadCount ?? 0) > 0 ? (
+                    <View
                       style={{
-                        color: '#0D9488',
-                        fontFamily: 'Manrope_700Bold',
-                        fontSize: 11,
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: '#EF4444',
                       }}
-                    >
-                      {item.count > 0 ? (item.count > 99 ? '99+' : item.count) : '1'}
-                    </Text>
-                  </View>
+                    />
+                  ) : null}
                 </View>
               </View>
             </PressableBounce>
@@ -363,18 +363,29 @@ export default function AppChatsScreen() {
                     marginBottom: 3,
                   }}
                 >
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontSize: 15.5,
-                      fontFamily: 'Manrope_700Bold',
-                      color: '#FFFFFF',
-                      flex: 1,
-                      marginRight: 8,
-                    }}
-                  >
-                    {item.title ?? appName}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8, gap: 6 }}>
+                    {!item.isArchived ? (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: '#EF4444',
+                        }}
+                      />
+                    ) : null}
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 15.5,
+                        fontFamily: 'Manrope_700Bold',
+                        color: !item.isArchived ? '#FFFFFF' : '#9CA3AF',
+                        flex: 1,
+                      }}
+                    >
+                      {item.title ?? appName}
+                    </Text>
+                  </View>
                   <Text style={{ fontSize: 12, color: '#7C8494' }}>
                     {formatAppTime(item.postedAt)}
                   </Text>
@@ -400,6 +411,18 @@ export default function AppChatsScreen() {
                       />
                     ) : null}
 
+                    {item.mediaPath ? (
+                      <Image
+                        source={{
+                          uri: item.mediaPath.startsWith('file://')
+                            ? item.mediaPath
+                            : `file://${item.mediaPath}`,
+                        }}
+                        style={{ width: 26, height: 26, borderRadius: 4, marginRight: 4 }}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+
                     <Text
                       numberOfLines={1}
                       style={{
@@ -408,7 +431,7 @@ export default function AppChatsScreen() {
                         flex: 1,
                       }}
                     >
-                      {item.text || item.bigText || 'No message text'}
+                      {item.text || item.bigText || (item.mediaPath ? '📷 Photo' : 'No message text')}
                     </Text>
                   </View>
 

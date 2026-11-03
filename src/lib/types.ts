@@ -60,6 +60,7 @@ export interface Conversation {
   deletedCount: number;
   mediaPath: string | null;
   sbnKey: string | null;
+  unreadCount?: number;
 }
 
 export interface AppSummary {

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -10,8 +10,9 @@ import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
-import { getConversations, openAccessSettings, queryNotifications, setArchived } from '@/data/repository';
+import { deleteNotifications, getConversations, openAccessSettings, queryNotifications, setArchived } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
+import { isChatMessage } from '@/lib/chat';
 import type { Conversation } from '@/lib/types';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
@@ -44,7 +45,20 @@ export function ChatsTab() {
 
   const list = conversations ?? [];
 
-  const openThread = (c: Conversation) => {
+  const openThread = async (c: Conversation) => {
+    try {
+      const msgs = await queryNotifications({
+        packages: [c.packageName],
+        search: c.title,
+        archived: 'exclude',
+        limit: 100,
+      });
+      if (msgs.length > 0) {
+        await setArchived(msgs.map((m) => m.id), true);
+        bump();
+      }
+    } catch {}
+
     router.push({
       pathname: '/chat/thread' as any,
       params: {
@@ -59,22 +73,23 @@ export function ChatsTab() {
   const handleClearAllMessages = () => {
     showAppConfirm(
       'Clear all messages?',
-      'Are you sure you want to mark all messages as read and clear unread badges?',
+      'Are you sure you want to clear all chat messages? Notifications from other apps will not be affected.',
       async () => {
         try {
-          const unread = await queryNotifications({ archived: 'exclude', limit: 2000 });
-          if (unread.length > 0) {
-            await setArchived(unread.map((n) => n.id), true);
+          const allRecords = await queryNotifications({ archived: 'include', limit: 3000 });
+          const messageIds = allRecords.filter(isChatMessage).map((n) => n.id);
+          if (messageIds.length > 0) {
+            await deleteNotifications(messageIds);
             bump();
-            showAppToast('All messages cleared');
+            showAppToast('All chat messages cleared');
           } else {
-            showAppToast('All messages are already cleared');
+            showAppToast('No chat messages to clear');
           }
         } catch {
           showAppToast('Could not clear messages', 'error');
         }
       },
-      false,
+      true,
       'Clear all',
     );
   };
@@ -190,6 +205,13 @@ export function ChatsTab() {
                     name={item.title}
                     packageName={item.packageName}
                     appName={item.appName}
+                    imageUri={
+                      item.mediaPath
+                        ? item.mediaPath.startsWith('file://')
+                          ? item.mediaPath
+                          : `file://${item.mediaPath}`
+                        : undefined
+                    }
                     size={48}
                     showAppBadge={true}
                   />
@@ -277,34 +299,20 @@ export function ChatsTab() {
                             color: isDeleted ? '#FCA5A5' : '#9CA3AF',
                           }}
                         >
-                          {item.lastMessage ?? (item.mediaPath ? '📷 Photo' : 'New notification')}
+                          {item.lastMessage ?? (item.mediaPath ? '📷 Photo' : 'New message')}
                         </Text>
                       </View>
 
-                      {!item.title.toLowerCase().includes('srj') &&
-                      !item.title.toLowerCase().includes('myvas') &&
-                      !item.title.toLowerCase().includes('jokes') ? (
+                      {/* Red dot indicator for unread chat conversation */}
+                      {(item.unreadCount ?? 0) > 0 ? (
                         <View
                           style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 11,
-                            borderWidth: 1.5,
-                            borderColor: '#0D9488',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: '#EF4444',
                           }}
-                        >
-                          <Text
-                            style={{
-                              color: '#0D9488',
-                              fontFamily: 'Manrope_700Bold',
-                              fontSize: 11,
-                            }}
-                          >
-                            {item.count > 0 ? (item.count > 99 ? '99+' : item.count) : '1'}
-                          </Text>
-                        </View>
+                        />
                       ) : null}
                     </View>
                   </View>

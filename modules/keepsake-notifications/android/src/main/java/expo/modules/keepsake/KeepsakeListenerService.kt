@@ -2,6 +2,10 @@ package expo.modules.keepsake
 
 import android.app.Notification
 import android.content.ComponentName
+import android.graphics.Bitmap
+import android.graphics.drawable.Icon
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -180,23 +184,9 @@ class KeepsakeListenerService : NotificationListenerService() {
       NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
     }
 
-    // Try extracting genuine media picture from the notification (BigPictureStyle)
-    var mediaPath: String? = null
-    var mediaType: String? = null
-    try {
-      val bmp = if (android.os.Build.VERSION.SDK_INT >= 33) {
-        x.getParcelable(Notification.EXTRA_PICTURE, android.graphics.Bitmap::class.java)
-      } else {
-        @Suppress("DEPRECATION")
-        x.getParcelable(Notification.EXTRA_PICTURE) as? android.graphics.Bitmap
-      }
-      if (bmp != null && bmp.width > 32 && bmp.height > 32) {
-        mediaPath = MediaSaver.saveBitmap(this, bmp, pkg.substringAfterLast('.'))
-        mediaType = "image"
-      }
-    } catch (e: Exception) {
-      Log.w(TAG, "Media extraction failed", e)
-    }
+    // Try extracting genuine media picture from the notification
+    val mediaPath = extractNotificationImage(n, x, pkg)
+    val mediaType = if (mediaPath != null) "image" else null
 
     val record = NotificationDb.Captured(
       sbnKey = sbn.key,
@@ -238,6 +228,105 @@ class KeepsakeListenerService : NotificationListenerService() {
     lastCleanup = now
     val deleted = NotificationDb.get(this).cleanup(now - days * DAY_MS, prefs.keepFavorites, prefs.keepArchived)
     if (deleted > 0) ChangeBus.emit("cleanup")
+  }
+
+  private fun extractNotificationImage(n: Notification, extras: Bundle, pkg: String): String? {
+    val prefix = pkg.substringAfterLast('.')
+
+    // 1. Android 31+ BigPictureStyle (EXTRA_PICTURE_ICON = "android.pictureIcon")
+    try {
+      val picIcon = extras.get("android.pictureIcon")
+      if (picIcon is Icon) {
+        val path = MediaSaver.saveIcon(this, picIcon, prefix)
+        if (path != null) return path
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_PICTURE_ICON check failed", e)
+    }
+
+    // 2. EXTRA_PICTURE ("android.picture") - can be Bitmap or Icon
+    try {
+      val picObj = extras.get(Notification.EXTRA_PICTURE)
+      if (picObj is Bitmap && picObj.width > 24 && picObj.height > 24) {
+        val path = MediaSaver.saveBitmap(this, picObj, prefix)
+        if (path != null) return path
+      } else if (picObj is Icon) {
+        val path = MediaSaver.saveIcon(this, picObj, prefix)
+        if (path != null) return path
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_PICTURE check failed", e)
+    }
+
+    // 3. EXTRA_LARGE_ICON_BIG ("android.largeIcon.big")
+    try {
+      val bigIconObj = extras.get("android.largeIcon.big")
+      if (bigIconObj is Bitmap && bigIconObj.width > 24 && bigIconObj.height > 24) {
+        val path = MediaSaver.saveBitmap(this, bigIconObj, prefix)
+        if (path != null) return path
+      } else if (bigIconObj is Icon) {
+        val path = MediaSaver.saveIcon(this, bigIconObj, prefix)
+        if (path != null) return path
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "android.largeIcon.big check failed", e)
+    }
+
+    // 4. EXTRA_MESSAGES ("android.messages") for messaging apps (WhatsApp, Messenger, Telegram)
+    try {
+      val msgs = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+      if (msgs != null) {
+        for (i in msgs.indices.reversed()) {
+          val b = msgs[i] as? Bundle ?: continue
+          val type = b.getString("type")
+          val uri = if (Build.VERSION.SDK_INT >= 33) {
+            b.getParcelable("uri", Uri::class.java)
+          } else {
+            @Suppress("DEPRECATION")
+            b.getParcelable("uri") as? Uri
+          }
+          if (uri != null && (type?.startsWith("image/") == true || type == null)) {
+            val path = MediaSaver.saveUri(this, uri, prefix)
+            if (path != null) return path
+          }
+        }
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_MESSAGES uri check failed", e)
+    }
+
+    // 5. Check if text or ticker indicates an image message (e.g. contains 📷 or "Image" or "Photo")
+    val textStr = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+    val bigTextStr = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+    val tickerStr = n.tickerText?.toString() ?: ""
+    val isImageNotification = textStr.contains("📷") || textStr.contains("Photo", ignoreCase = true) ||
+                              textStr.contains("Image", ignoreCase = true) ||
+                              bigTextStr.contains("📷") || bigTextStr.contains("Photo", ignoreCase = true) ||
+                              bigTextStr.contains("Image", ignoreCase = true) ||
+                              tickerStr.contains("📷")
+
+    if (isImageNotification) {
+      try {
+        val largeObj = extras.get(Notification.EXTRA_LARGE_ICON)
+        if (largeObj is Bitmap && largeObj.width > 24 && largeObj.height > 24) {
+          val path = MediaSaver.saveBitmap(this, largeObj, prefix)
+          if (path != null) return path
+        } else if (largeObj is Icon) {
+          val path = MediaSaver.saveIcon(this, largeObj, prefix)
+          if (path != null) return path
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+          val icon = n.getLargeIcon()
+          if (icon != null) {
+            val path = MediaSaver.saveIcon(this, icon, prefix)
+            if (path != null) return path
+          }
+        }
+      } catch (e: Exception) {
+        Log.d(TAG, "largeIcon for image check failed", e)
+      }
+    }
+
+    return null
   }
 
   companion object {

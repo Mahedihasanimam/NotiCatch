@@ -1,27 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { Image, View } from 'react-native';
 import { AppIcon, getAppBrand } from './AppIcon';
 import { Text } from './ui';
-
-const AVATAR_COLORS = [
-  '#4F46E5', // Indigo
-  '#059669', // Emerald
-  '#D97706', // Amber
-  '#DC2626', // Red
-  '#7C3AED', // Violet
-  '#DB2777', // Pink
-  '#0284C7', // Sky
-  '#0D9488', // Teal
-];
-
-function colorForName(name: string): string {
-  if (name.toLowerCase().includes('cse') || name.toLowerCase().includes('uttara')) {
-    return '#1557E5'; // Royal blue matching Screenshots
-  }
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length] ?? AVATAR_COLORS[0]!;
-}
 
 export function getInitials(name: string): string {
   if (name.toLowerCase().includes('cse')) return 'UU';
@@ -40,178 +21,6 @@ interface AvatarProps {
   showAppBadge?: boolean;
 }
 
-function renderAvatarContent(name: string, packageName: string, size: number) {
-  const pkg = packageName.toLowerCase();
-  const n = name.toLowerCase();
-
-  // 1. Teams -> Purple background with people icon (Screenshot 1 & 6)
-  if (pkg.includes('teams') || n.includes('teams') || n.includes('asif')) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 2),
-          backgroundColor: '#5059C9',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ionicons name="people" size={Math.round(size * 0.52)} color="#FFFFFF" />
-      </View>
-    );
-  }
-
-  // 2. Messages / SMS -> Dark speech bubble avatar (Screenshot 1 & 6 for Robi_bKash, MyVAS, Jokes)
-  if (
-    pkg.includes('messaging') ||
-    n.includes('bkash') ||
-    n.includes('myvas') ||
-    n.includes('jokes')
-  ) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 2),
-          backgroundColor: '#1C1F27',
-          borderWidth: 1,
-          borderColor: '#343846',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ionicons name="chatbubble-sharp" size={Math.round(size * 0.48)} color="#9CA3AF" />
-      </View>
-    );
-  }
-
-  // 3. Gmail syncing -> Dark envelope avatar (Screenshot 1 & 6 for Syncing new emails)
-  if (n.includes('syncing')) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 2),
-          backgroundColor: '#1C1F27',
-          borderWidth: 1,
-          borderColor: '#343846',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ionicons name="mail" size={Math.round(size * 0.48)} color="#9CA3AF" />
-      </View>
-    );
-  }
-
-  // 4. Uttara University / CSE 65B -> Royal blue avatar with UU (Screenshot 1, 5, 6)
-  if (n.includes('cse') || n.includes('uttara')) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 2),
-          backgroundColor: '#1557E5',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text
-          style={{
-            color: '#FFFFFF',
-            fontFamily: 'Manrope_800ExtraBold',
-            fontSize: Math.round(size * 0.38),
-            letterSpacing: 0.5,
-          }}
-        >
-          UU
-        </Text>
-      </View>
-    );
-  }
-
-  // 5. Google AdSense -> Bright blue avatar with "G" (Image 1)
-  if (n.includes('adsense') || n.includes('google adsense')) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 2),
-          backgroundColor: '#29B6F6',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text
-          style={{
-            color: '#FFFFFF',
-            fontFamily: 'Manrope_800ExtraBold',
-            fontSize: Math.round(size * 0.5),
-          }}
-        >
-          G
-        </Text>
-      </View>
-    );
-  }
-
-  // 6. Ali Hossain -> Photo from Image 2
-  if (n.includes('ali hossain')) {
-    return (
-      <Image
-        source={require('../../assets/ali_hossain_avatar.png')}
-        style={{ width: size, height: size, borderRadius: Math.round(size / 2) }}
-        resizeMode="cover"
-      />
-    );
-  }
-
-  // 7. Kazi Mahiuddin -> Photo from Image 1
-  if (n.includes('kazi') || n.includes('mahiuddin')) {
-    return (
-      <Image
-        source={require('../../assets/kazi_avatar.png')}
-        style={{ width: size, height: size, borderRadius: Math.round(size / 2) }}
-        resizeMode="cover"
-      />
-    );
-  }
-
-  // 8. Default color & initials
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: Math.round(size / 2),
-        backgroundColor: colorForName(name),
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-      }}
-    >
-      <Text
-        style={{
-          color: '#FFFFFF',
-          fontFamily: 'Manrope_700Bold',
-          fontSize: Math.round(size * 0.38),
-        }}
-      >
-        {getInitials(name)}
-      </Text>
-    </View>
-  );
-}
-
 export function Avatar({
   name,
   imageUri,
@@ -220,27 +29,60 @@ export function Avatar({
   size = 46,
   showAppBadge = true,
 }: AvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const radius = Math.round(size / 2);
   const badgeSize = Math.max(16, Math.round(size * 0.38));
-  const brand = getAppBrand(packageName, appName);
+  const brand = getAppBrand(packageName, appName || name);
+
+  const hasValidPhoto = Boolean(imageUri && !imageFailed);
 
   return (
     <View style={{ width: size, height: size, position: 'relative' }}>
-      {imageUri ? (
+      {hasValidPhoto ? (
         <Image
-          source={{ uri: imageUri }}
+          source={{ uri: imageUri! }}
+          onError={() => setImageFailed(true)}
           style={{
             width: size,
             height: size,
             borderRadius: radius,
-            backgroundColor: '#E2E8F0',
+            backgroundColor: '#2E323F',
           }}
           resizeMode="cover"
         />
+      ) : packageName ? (
+        // When packageName is known: show actual real App Icon (never random initials MN, DC, SP)
+        <AppIcon
+          packageName={packageName}
+          name={appName || name}
+          size={size}
+          shape="circle"
+        />
       ) : (
-        renderAvatarContent(name, packageName, size)
+        // Fallback for tests or unknown packages
+        <View
+          style={{
+            width: size,
+            height: size,
+            borderRadius: radius,
+            backgroundColor: '#0A6C74',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontFamily: 'Manrope_700Bold',
+              fontSize: Math.round(size * 0.38),
+            }}
+          >
+            {getInitials(name)}
+          </Text>
+        </View>
       )}
 
+      {/* Corner app badge */}
       {showAppBadge && packageName ? (
         <View
           style={{
@@ -272,4 +114,3 @@ export function Avatar({
     </View>
   );
 }
-

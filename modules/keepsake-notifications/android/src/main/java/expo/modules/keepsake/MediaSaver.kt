@@ -2,8 +2,11 @@ package expo.modules.keepsake
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
@@ -30,16 +33,36 @@ object MediaSaver {
   fun saveIcon(context: Context, icon: Icon?, prefix: String = "img"): String? {
     if (icon == null) return null
     return try {
-      val drawable = icon.loadDrawable(context)
+      val drawable = icon.loadDrawable(context) ?: return null
       if (drawable is BitmapDrawable && drawable.bitmap != null) {
         saveBitmap(context, drawable.bitmap, prefix)
       } else {
-        null
+        val w = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 240
+        val h = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 240
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        saveBitmap(context, bmp, prefix)
       }
     } catch (e: Exception) {
       Log.w(TAG, "Failed to load/save icon", e)
       null
     }
   }
-}
 
+  fun saveUri(context: Context, uri: Uri?, prefix: String = "img"): String? {
+    if (uri == null) return null
+    return try {
+      context.contentResolver.openInputStream(uri)?.use { stream ->
+        val bmp = BitmapFactory.decodeStream(stream)
+        if (bmp != null) {
+          saveBitmap(context, bmp, prefix)
+        } else null
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to load/save uri: $uri", e)
+      null
+    }
+  }
+}

@@ -26,6 +26,7 @@ import {
   setArchived,
 } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
+import { isChatMessage } from '@/lib/chat';
 import { formatTime } from '@/lib/time';
 import type { NotificationRecord } from '@/lib/types';
 import { useAccess } from '@/store/access';
@@ -117,7 +118,7 @@ export function NotificationsTab() {
 
       showAppConfirm(
         'Mark all as read?',
-        'Are you sure you want to mark all unread notifications as read?',
+        'Are you sure you want to mark all unread notifications as read? Chat messages will not be affected.',
         async () => {
           try {
             const allUnread = await queryNotifications({
@@ -125,9 +126,10 @@ export function NotificationsTab() {
               deletedOnly: filterMode === 'deleted',
               limit: 5000,
             });
-            const ids = allUnread.map((n) => n.id);
-            if (ids.length > 0) {
-              await setArchived(ids, true);
+            // Only clear non-chat notifications
+            const notifIds = allUnread.filter((n) => !isChatMessage(n)).map((n) => n.id);
+            if (notifIds.length > 0) {
+              await setArchived(notifIds, true);
               bump();
               showAppToast('All notifications marked as read');
             } else {
@@ -148,7 +150,7 @@ export function NotificationsTab() {
 
       showAppConfirm(
         'Clear saved notifications?',
-        'Are you sure you want to clear all saved notifications? This will delete them from your saved list.',
+        'Are you sure you want to clear all saved notifications? Chat messages will not be affected.',
         async () => {
           try {
             const targetRecords = await queryNotifications({
@@ -156,7 +158,8 @@ export function NotificationsTab() {
               deletedOnly: filterMode === 'deleted',
               limit: 5000,
             });
-            const ids = targetRecords.map((n) => n.id);
+            // Only clear non-chat notifications
+            const ids = targetRecords.filter((n) => !isChatMessage(n)).map((n) => n.id);
             if (ids.length > 0) {
               await deleteNotifications(ids);
               bump();
@@ -180,6 +183,11 @@ export function NotificationsTab() {
 
   // Navigate to App-wise message item list
   const handleOpenAppGroup = (group: AppGroup) => {
+    const unreadIds = group.items.filter((i) => !i.isArchived).map((i) => i.id);
+    if (unreadIds.length > 0) {
+      void setArchived(unreadIds, true).then(() => bump());
+    }
+
     router.push({
       pathname: '/app-chats/[package]' as any,
       params: { package: group.packageName, name: group.appName },
@@ -188,13 +196,13 @@ export function NotificationsTab() {
 
   // Navigate directly to Chat Thread or notification detail
   const handleOpenItem = (item: NotificationRecord, group: AppGroup) => {
-    const isChatApp =
-      group.packageName.toLowerCase().includes('whatsapp') ||
-      group.packageName.toLowerCase().includes('messaging') ||
-      group.packageName.toLowerCase().includes('orca') ||
-      group.packageName.toLowerCase().includes('telegram');
+    if (!item.isArchived) {
+      void setArchived([item.id], true).then(() => bump());
+    }
 
-    if (isChatApp && item.title) {
+    const isChat = isChatMessage(item);
+
+    if (isChat && item.title) {
       router.push({
         pathname: '/chat/thread' as any,
         params: {
@@ -315,31 +323,69 @@ export function NotificationsTab() {
         }}
       >
         {/* Unread / Saved Toggle */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
           <PressableBounce onPress={() => setSubTab('unread')} scaleTo={0.94}>
-            <Text
-              style={{
-                fontSize: 22,
-                fontFamily: 'Manrope_800ExtraBold',
-                color: subTab === 'unread' ? '#FFFFFF' : '#8E94A5',
-                letterSpacing: -0.3,
-              }}
-            >
-              Unread
-            </Text>
+            <View style={{ alignItems: 'flex-start' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text
+                  style={{
+                    fontSize: 22,
+                    fontFamily: 'Manrope_800ExtraBold',
+                    color: subTab === 'unread' ? '#FFFFFF' : '#7C8494',
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  Unread
+                </Text>
+                {unreadNotifications.length > 0 ? (
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: '#EF4444',
+                    }}
+                  />
+                ) : null}
+              </View>
+              {subTab === 'unread' ? (
+                <View
+                  style={{
+                    height: 2.5,
+                    width: '100%',
+                    backgroundColor: '#0D9488',
+                    borderRadius: 1.5,
+                    marginTop: 4,
+                  }}
+                />
+              ) : null}
+            </View>
           </PressableBounce>
 
           <PressableBounce onPress={() => setSubTab('saved')} scaleTo={0.94}>
-            <Text
-              style={{
-                fontSize: 22,
-                fontFamily: 'Manrope_800ExtraBold',
-                color: subTab === 'saved' ? '#FFFFFF' : '#8E94A5',
-                letterSpacing: -0.3,
-              }}
-            >
-              Saved
-            </Text>
+            <View style={{ alignItems: 'flex-start' }}>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontFamily: 'Manrope_800ExtraBold',
+                  color: subTab === 'saved' ? '#FFFFFF' : '#7C8494',
+                  letterSpacing: -0.3,
+                }}
+              >
+                Saved
+              </Text>
+              {subTab === 'saved' ? (
+                <View
+                  style={{
+                    height: 2.5,
+                    width: '100%',
+                    backgroundColor: '#0D9488',
+                    borderRadius: 1.5,
+                    marginTop: 4,
+                  }}
+                />
+              ) : null}
+            </View>
           </PressableBounce>
         </View>
 

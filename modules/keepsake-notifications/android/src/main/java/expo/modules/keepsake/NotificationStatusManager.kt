@@ -6,8 +6,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,7 +23,7 @@ import java.util.Locale
 
 /**
  * Manages the ongoing status notification in Android's notification shade/tray (like Notisave).
- * Displays live count of saved notifications, the last captured app's icon, and time.
+ * Displays live count of saved notifications, NotiCatch's logo, the last captured app's icon, and time.
  */
 object NotificationStatusManager {
   private const val TAG = "NotificationStatus"
@@ -58,9 +64,7 @@ object NotificationStatusManager {
       val count = db.totalUnarchivedCount()
       val latest = db.getLatestCapturedApp()
 
-      val text = if (count == 0) {
-        "Listening for notifications"
-      } else if (count == 1) {
+      val text = if (count == 1) {
         "1 notification saved"
       } else {
         "$count notifications saved"
@@ -82,7 +86,12 @@ object NotificationStatusManager {
         PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0),
       )
 
-      val iconRes = if (context.applicationInfo.icon != 0) context.applicationInfo.icon else android.R.drawable.ic_dialog_info
+      val smallIconRes = try {
+        R.drawable.ic_stat_noticatch
+      } catch (_: Exception) {
+        val resId = context.resources.getIdentifier("ic_stat_noticatch", "drawable", context.packageName)
+        if (resId != 0) resId else (if (context.applicationInfo.icon != 0) context.applicationInfo.icon else android.R.drawable.ic_dialog_info)
+      }
 
       val appLabel = try {
         context.packageManager.getApplicationLabel(context.applicationInfo).toString()
@@ -91,7 +100,8 @@ object NotificationStatusManager {
       }
 
       val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-        .setSmallIcon(iconRes)
+        .setSmallIcon(smallIconRes)
+        .setColor(0xFF0A6C74.toInt())
         .setContentTitle(appLabel)
         .setContentText(text)
         .setSubText(timeStr)
@@ -102,20 +112,17 @@ object NotificationStatusManager {
         .setContentIntent(pendingIntent)
         .setShowWhen(false)
 
-      // Try setting latest captured app's icon as large icon (matching Notisave screenshot)
-      if (latest != null) {
-        try {
-          val drawable = context.packageManager.getApplicationIcon(latest.first)
-          if (drawable is BitmapDrawable && drawable.bitmap != null) {
-            builder.setLargeIcon(drawable.bitmap)
-          } else {
-            val bmp = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            drawable.setBounds(0, 0, 96, 96)
-            drawable.draw(canvas)
-            builder.setLargeIcon(bmp)
-          }
-        } catch (_: Exception) {}
+      // Right side large icon: show captured app's icon, or NotiCatch's colorful logo
+      if (latest != null && latest.first != context.packageName) {
+        val capturedAppIcon = getAppIconBitmap(context, latest.first, 96)
+        if (capturedAppIcon != null) {
+          builder.setLargeIcon(capturedAppIcon)
+        }
+      } else {
+        val noticatchIcon = getAppIconBitmap(context, context.packageName, 96)
+        if (noticatchIcon != null) {
+          builder.setLargeIcon(noticatchIcon)
+        }
       }
 
       nm.notify(NOTIFICATION_ID, builder.build())
@@ -130,6 +137,78 @@ object NotificationStatusManager {
       nm?.cancel(NOTIFICATION_ID)
     } catch (e: Exception) {
       Log.w(TAG, "Failed to cancel status notification", e)
+    }
+  }
+
+  private fun getAppIconBitmap(context: Context, packageName: String, size: Int = 128): Bitmap? {
+    return try {
+      val pm = context.packageManager
+      val drawable = pm.getApplicationIcon(packageName)
+      drawableToBitmap(drawable, size, size)
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to get icon for $packageName", e)
+      null
+    }
+  }
+
+  private fun drawableToBitmap(drawable: Drawable, width: Int, height: Int): Bitmap {
+    if (drawable is BitmapDrawable && drawable.bitmap != null) {
+      return Bitmap.createScaledBitmap(drawable.bitmap, width, height, true)
+    }
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    drawable.setBounds(0, 0, width, height)
+    drawable.draw(canvas)
+    return bmp
+  }
+
+  private fun drawRoundedIcon(canvas: Canvas, icon: Bitmap, rect: RectF, cornerRadius: Float) {
+    try {
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+      val scaled = Bitmap.createScaledBitmap(icon, rect.width().toInt().coerceAtLeast(1), rect.height().toInt().coerceAtLeast(1), true)
+      val shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+      val matrix = Matrix()
+      matrix.setTranslate(rect.left, rect.top)
+      shader.setLocalMatrix(matrix)
+      paint.shader = shader
+      canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint)
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to draw rounded icon", e)
+    }
+  }
+
+  private fun createStatusLargeIcon(context: Context, latestPackage: String?): Bitmap? {
+    try {
+      val noticatchLogo = getAppIconBitmap(context, context.packageName, 128) ?: return null
+      val capturedAppIcon = if (latestPackage != null && latestPackage != context.packageName) {
+        getAppIconBitmap(context, latestPackage, 128)
+      } else {
+        null
+      }
+
+      val canvasSize = 128
+      val outBmp = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888)
+      val canvas = Canvas(outBmp)
+
+      if (capturedAppIcon != null) {
+        // Two icons side-by-side matching Notisave (both inside circular/squircle mask)
+        // Left: NotiCatch logo
+        val leftRect = RectF(10f, 38f, 62f, 90f)
+        drawRoundedIcon(canvas, noticatchLogo, leftRect, 12f)
+
+        // Right: Captured app logo
+        val rightRect = RectF(66f, 38f, 118f, 90f)
+        drawRoundedIcon(canvas, capturedAppIcon, rightRect, 12f)
+      } else {
+        // Single NotiCatch logo centered
+        val fullRect = RectF(14f, 14f, 114f, 114f)
+        drawRoundedIcon(canvas, noticatchLogo, fullRect, 22f)
+      }
+
+      return outBmp
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to create status large icon", e)
+      return null
     }
   }
 }

@@ -258,9 +258,10 @@ class NotificationDb private constructor(context: Context) :
            COUNT(*) AS total_count,
            SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) AS deleted_count,
            MAX(media_path) AS sample_media,
-           sbn_key
+           sbn_key,
+           SUM(CASE WHEN is_archived = 0 THEN 1 ELSE 0 END) AS unread_count
     FROM notifications
-    WHERE is_archived = 0 AND (title IS NOT NULL OR text IS NOT NULL)
+    WHERE (title IS NOT NULL OR text IS NOT NULL)
     GROUP BY package_name, COALESCE(title, app_name)
     ORDER BY last_posted_at DESC
     """,
@@ -278,7 +279,8 @@ class NotificationDb private constructor(context: Context) :
           .put("count", c.getInt(5))
           .put("deletedCount", c.getInt(6))
           .put("mediaPath", if (c.isNull(7)) JSONObject.NULL else c.getString(7))
-          .put("sbnKey", if (c.isNull(8)) JSONObject.NULL else c.getString(8)),
+          .put("sbnKey", if (c.isNull(8)) JSONObject.NULL else c.getString(8))
+          .put("unreadCount", c.getInt(9)),
       )
     }
     a

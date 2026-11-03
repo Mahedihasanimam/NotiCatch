@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   Share,
@@ -22,6 +23,7 @@ import {
   getConversationMessages,
   queryNotifications,
   sendReply,
+  setArchived,
 } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
 import type { NotificationRecord } from '@/lib/types';
@@ -77,6 +79,7 @@ export default function ChatThread() {
   const [sending, setSending] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<NotificationRecord>>(null);
 
   const isWhatsApp = (packageName || '').toLowerCase().includes('whatsapp');
@@ -94,7 +97,7 @@ export default function ChatThread() {
       if (list && list.length > 0) return list;
     }
     // Fallback: search in notifications
-    const all = await queryNotifications({ packages: [packageName], limit: 100 });
+    const all = await queryNotifications({ packages: [packageName], archived: 'include', limit: 200 });
     if (notificationId) {
       const specific = all.filter((n) => String(n.id) === String(notificationId));
       if (specific.length > 0) return specific;
@@ -116,6 +119,16 @@ export default function ChatThread() {
     title,
     notificationId,
   ]);
+
+  // Mark unread messages in this thread as read
+  useEffect(() => {
+    if (rawMessages && rawMessages.length > 0) {
+      const unreadIds = rawMessages.filter((m) => !m.isArchived).map((m) => m.id);
+      if (unreadIds.length > 0) {
+        void setArchived(unreadIds, true).then(() => bump());
+      }
+    }
+  }, [rawMessages]);
 
   // Sort messages chronologically (oldest first, newest at bottom)
   const messages = useMemo(() => {
@@ -399,7 +412,7 @@ export default function ChatThread() {
                           </View>
                         ) : null}
 
-                        {body ? (
+                        {body && (!hasImage || (!body.includes('Image') && !body.includes('Photo') && !body.includes('📷'))) ? (
                           <Text
                             selectable
                             style={{
@@ -413,12 +426,13 @@ export default function ChatThread() {
                           </Text>
                         ) : null}
 
-                        {/* Attached Media / Image Card (matching Image 2) */}
+                        {/* Attached Media / Image Card */}
                         {hasImage && imageUri ? (
-                          <View
+                          <Pressable
+                            onPress={() => setPreviewImage(imageUri)}
                             style={{
-                              marginTop: 10,
-                              borderRadius: 10,
+                              marginTop: body && (!body.includes('Image') && !body.includes('Photo') && !body.includes('📷')) ? 10 : 2,
+                              borderRadius: 12,
                               overflow: 'hidden',
                               position: 'relative',
                             }}
@@ -426,14 +440,14 @@ export default function ChatThread() {
                             <Image
                               source={{ uri: imageUri }}
                               style={{
-                                width: 250,
-                                height: 165,
-                                borderRadius: 10,
+                                width: 240,
+                                height: 175,
+                                borderRadius: 12,
                                 backgroundColor: '#1C1F27',
                               }}
                               resizeMode="cover"
                             />
-                            {/* Floating Share Button in bottom right of image (as seen in Image 2) */}
+                            {/* Floating Share Button in bottom right of image */}
                             <PressableBounce
                               onPress={() => shareMessage(item)}
                               hitSlop={8}
@@ -452,7 +466,7 @@ export default function ChatThread() {
                             >
                               <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
                             </PressableBounce>
-                          </View>
+                          </Pressable>
                         ) : null}
 
                         {/* Timestamp (e.g. pm 3:02, pm 3:20) */}
@@ -561,6 +575,41 @@ export default function ChatThread() {
           </View>
         )}
       </KeyboardAvoidingView>
+      {/* Fullscreen Image Preview Modal */}
+      <Modal
+        visible={previewImage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+          <Pressable
+            onPress={() => setPreviewImage(null)}
+            style={{
+              position: 'absolute',
+              top: top + 16,
+              right: 20,
+              zIndex: 10,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="close" size={26} color="#FFFFFF" />
+          </Pressable>
+
+          {previewImage ? (
+            <Image
+              source={{ uri: previewImage }}
+              style={{ width: '100%', height: '80%' }}
+              resizeMode="contain"
+            />
+          ) : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

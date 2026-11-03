@@ -34,6 +34,7 @@ function AppNotificationCardBase({
   onToggleMute,
 }: Props) {
   const isWhatsApp = group.packageName.toLowerCase().includes('whatsapp');
+  const unreadCount = group.items.filter((i) => !i.isArchived).length;
 
   return (
     <PressableBounce
@@ -52,7 +53,7 @@ function AppNotificationCardBase({
         elevation: 2,
       }}
     >
-      {/* 1. Header Row matching Screenshot 1: App Icon + Name + Timestamp + Bell + 3-dots */}
+      {/* 1. Header Row: App Icon + Name + Timestamp + Unread badge + Bell + 3-dots */}
       <View
         style={{
           flexDirection: 'row',
@@ -69,15 +70,31 @@ function AppNotificationCardBase({
             shape="squircle"
           />
           <View>
-            <Text
-              style={{
-                fontFamily: 'Manrope_700Bold',
-                fontSize: 15,
-                color: '#FFFFFF',
-              }}
-            >
-              {group.appName}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text
+                style={{
+                  fontFamily: 'Manrope_700Bold',
+                  fontSize: 15,
+                  color: '#FFFFFF',
+                }}
+              >
+                {group.appName}
+              </Text>
+
+              {/* Red dot indicator for unread notifications */}
+              {unreadCount > 0 ? (
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#EF4444',
+                    marginLeft: 2,
+                  }}
+                />
+              ) : null}
+            </View>
+
             <Text style={{ fontSize: 12, color: '#7C8494', marginTop: 1 }}>
               {formatNotisaveRelative(group.lastPostedAt, now)}
             </Text>
@@ -109,11 +126,12 @@ function AppNotificationCardBase({
         </View>
       </View>
 
-      {/* 2. Notification Items inside this App Card matching Screenshot 1 */}
+      {/* 2. Notification Items inside this App Card */}
       <View style={{ gap: 10 }}>
         {group.items.map((item, index) => {
           const title = item.title ?? group.appName;
           const body = item.text ?? item.bigText ?? '';
+          const isUnread = !item.isArchived;
           const isGroup =
             isWhatsApp &&
             (title.includes('(B)') ||
@@ -128,8 +146,20 @@ function AppNotificationCardBase({
               onPress={() => (onPressItem ? onPressItem(item) : onPress(group))}
               style={({ pressed }) => [{ gap: 2, opacity: pressed ? 0.75 : 1 }]}
             >
-              {/* Line 1: Title (with purple square badge if WhatsApp group chat, matching Screenshot 1) */}
+              {/* Line 1: Unread Dot + WhatsApp Group badge + Title */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {/* Red dot for unread notification item */}
+                {isUnread ? (
+                  <View
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 3.5,
+                      backgroundColor: '#EF4444',
+                    }}
+                  />
+                ) : null}
+
                 {isGroup ? (
                   <View
                     style={{
@@ -140,12 +170,13 @@ function AppNotificationCardBase({
                     }}
                   />
                 ) : null}
+
                 <Text
                   numberOfLines={1}
                   style={{
                     fontSize: 14.5,
-                    fontFamily: 'Manrope_700Bold',
-                    color: '#FFFFFF',
+                    fontFamily: isUnread ? 'Manrope_700Bold' : 'Manrope_600SemiBold',
+                    color: isUnread ? '#FFFFFF' : '#9CA3AF',
                     flex: 1,
                   }}
                 >
@@ -159,8 +190,12 @@ function AppNotificationCardBase({
                   numberOfLines={1}
                   style={{
                     fontSize: 13.5,
-                    color: item.isDeleted ? '#EF4444' : '#D1D5DB',
-                    paddingLeft: isGroup ? 18 : 0,
+                    color: item.isDeleted
+                      ? '#EF4444'
+                      : isUnread
+                      ? '#D1D5DB'
+                      : '#6B7280',
+                    paddingLeft: isUnread ? 13 : isGroup ? 18 : 0,
                   }}
                 >
                   {item.isDeleted ? `🗑️ [Deleted by sender] ${body}` : body}

@@ -1,2 +1,4 @@
 expo.modules.keepsake
+drawable ic_stat_noticatch
+drawable ic_status_bell
 string app_name
