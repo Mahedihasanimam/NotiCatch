@@ -104,6 +104,15 @@ export async function getInstalledApps(): Promise<InstalledApp[]> {
 
 export const getAppIcon = (packageName: string): Promise<string | null> => requireNative().getAppIcon(packageName);
 
+export const playAudio = (filePath: string): Promise<boolean> =>
+  getNative() ? requireNative().playAudio(filePath) : Promise.resolve(false);
+
+export const stopAudio = (): Promise<boolean> =>
+  getNative() ? requireNative().stopAudio() : Promise.resolve(false);
+
+export const playPreviewTone = (): Promise<boolean> =>
+  getNative() ? requireNative().playPreviewTone() : Promise.resolve(false);
+
 // ------------------------------------------------------------------ writes
 
 export const setFavorite = (list: number[], value: boolean): Promise<number> => requireNative().setFavorite(ids(list), value);

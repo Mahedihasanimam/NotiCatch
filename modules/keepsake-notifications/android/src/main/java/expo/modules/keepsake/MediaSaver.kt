@@ -65,4 +65,27 @@ object MediaSaver {
       null
     }
   }
+
+  fun saveAudioUri(context: Context, uri: Uri?, prefix: String = "audio", ext: String = "m4a"): String? {
+    if (uri == null) return null
+    return try {
+      val dir = File(context.filesDir, "saved_media").apply { if (!exists()) mkdirs() }
+      val filename = "${prefix}_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.$ext"
+      val file = File(dir, filename)
+      context.contentResolver.openInputStream(uri)?.use { input ->
+        FileOutputStream(file).use { output ->
+          input.copyTo(output)
+        }
+      }
+      if (file.exists() && file.length() > 0) {
+        file.absolutePath
+      } else {
+        file.delete()
+        null
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to load/save audio uri: $uri", e)
+      null
+    }
+  }
 }

@@ -21,11 +21,15 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
 import {
   getConversationMessages,
+  playAudio,
+  playPreviewTone,
   queryNotifications,
   sendReply,
   setArchived,
+  stopAudio,
 } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
+import { cleanChatTitle } from '@/lib/chat';
 import type { NotificationRecord } from '@/lib/types';
 import { useDataVersion } from '@/store/dataVersion';
 import { radius, space } from '@/theme';
@@ -65,6 +69,197 @@ function parseSenderAndBody(rawText: string | null | undefined, fallbackTitle: s
   };
 }
 
+function isVoiceMessage(item: NotificationRecord, bodyText: string) {
+  if (item.mediaType === 'audio') return true;
+  const lower = (bodyText || '').toLowerCase();
+  return (
+    lower.includes('🎤') ||
+    lower.includes('audio message') ||
+    lower.includes('voice message') ||
+    lower.includes('voice note') ||
+    lower.includes('ভয়েস') ||
+    lower.includes('অডিও')
+  );
+}
+
+function isPhotoMessage(item: NotificationRecord, bodyText: string) {
+  if (item.mediaType === 'image') return true;
+  const lower = (bodyText || '').toLowerCase();
+  return (
+    lower.includes('📷') ||
+    lower.includes('sent a photo') ||
+    lower.includes('photo') ||
+    lower.includes('ছবি পাঠিয়েছেন')
+  );
+}
+
+const WAVE_BARS = [5, 9, 15, 22, 12, 7, 18, 24, 16, 11, 7, 13, 21, 15, 9, 17, 23, 13, 8, 14, 19, 10];
+
+interface VoiceNotePlayerProps {
+  item: NotificationRecord;
+  isPlaying: boolean;
+  progress: number;
+  elapsedSeconds: number;
+  onTogglePlay: () => void;
+}
+
+function VoiceNotePlayer({
+  isPlaying,
+  progress,
+  elapsedSeconds,
+  onTogglePlay,
+}: VoiceNotePlayerProps) {
+  const activeCount = Math.floor(progress * WAVE_BARS.length);
+  const totalSeconds = 15;
+  const currentSec = isPlaying ? elapsedSeconds : totalSeconds;
+  const displayTime = `0:${currentSec.toString().padStart(2, '0')}`;
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 4,
+        paddingHorizontal: 2,
+        minWidth: 220,
+      }}
+    >
+      <PressableBounce
+        scaleTo={0.92}
+        hitSlop={6}
+        onPress={onTogglePlay}
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: '#0A6C74',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 1,
+          borderColor: 'rgba(0, 229, 255, 0.4)',
+        }}
+      >
+        <Ionicons
+          name={isPlaying ? 'pause' : 'play'}
+          size={18}
+          color="#FFFFFF"
+          style={{ marginLeft: isPlaying ? 0 : 2 }}
+        />
+      </PressableBounce>
+
+      {/* Waveform Bars */}
+      <View
+        style={{
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          height: 28,
+          justifyContent: 'space-between',
+        }}
+      >
+        {WAVE_BARS.map((height, i) => {
+          const isActive = isPlaying ? i <= activeCount : false;
+          return (
+            <View
+              key={i}
+              style={{
+                width: 3,
+                height,
+                borderRadius: 2,
+                backgroundColor: isActive ? '#00E5FF' : '#555C6E',
+              }}
+            />
+          );
+        })}
+      </View>
+
+      {/* Timer & Mic Icon */}
+      <View style={{ alignItems: 'flex-end', marginLeft: 4 }}>
+        <Text
+          style={{
+            fontSize: 11,
+            color: isPlaying ? '#00E5FF' : '#8E94A5',
+            fontFamily: 'Manrope_600SemiBold',
+          }}
+        >
+          {displayTime}
+        </Text>
+        <Ionicons
+          name="mic"
+          size={12}
+          color={isPlaying ? '#00E5FF' : '#8E94A5'}
+          style={{ marginTop: 2 }}
+        />
+      </View>
+    </View>
+  );
+}
+
+interface PhotoPlaceholderCardProps {
+  caption?: string | null;
+}
+
+function PhotoPlaceholderCard({ caption }: PhotoPlaceholderCardProps) {
+  const displayCaption =
+    caption && !caption.includes('📷') && !caption.toLowerCase().includes('sent a photo')
+      ? caption
+      : 'Sent a photo to you';
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        borderRadius: 12,
+        padding: 10,
+        gap: 12,
+        minWidth: 210,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+      }}
+    >
+      <View
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: 10,
+          backgroundColor: 'rgba(10, 108, 116, 0.3)',
+          borderWidth: 1,
+          borderColor: 'rgba(0, 229, 255, 0.4)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="camera" size={22} color="#00E5FF" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 14.5,
+            fontFamily: 'Manrope_700Bold',
+          }}
+        >
+          Photo
+        </Text>
+        <Text
+          style={{
+            color: '#8E94A5',
+            fontSize: 12,
+            fontFamily: 'Manrope_500Medium',
+            marginTop: 2,
+          }}
+          numberOfLines={1}
+        >
+          {displayCaption}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function ChatThread() {
   const { top, bottom } = useSafeAreaInsets();
   const { packageName, title, appName, notificationId } = useLocalSearchParams<{
@@ -82,6 +277,81 @@ export default function ChatThread() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<NotificationRecord>>(null);
 
+  const [playingAudioId, setPlayingAudioId] = useState<number | string | null>(null);
+  const [playingProgress, setPlayingProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopCurrentAudio = useCallback(async () => {
+    if (playbackTimerRef.current) {
+      clearInterval(playbackTimerRef.current);
+      playbackTimerRef.current = null;
+    }
+    setPlayingAudioId(null);
+    setPlayingProgress(0);
+    setElapsedSeconds(0);
+    try {
+      await stopAudio();
+    } catch (_: unknown) {}
+  }, []);
+
+  const handleTogglePlayAudio = useCallback(
+    async (item: NotificationRecord) => {
+      const id = item.id || item.sbnKey;
+      if (playingAudioId === id) {
+        await stopCurrentAudio();
+        return;
+      }
+
+      await stopCurrentAudio();
+      setPlayingAudioId(id);
+      setPlayingProgress(0);
+      setElapsedSeconds(0);
+
+      const isAudioFile =
+        Boolean(item.mediaPath) &&
+        (item.mediaPath!.endsWith('.m4a') ||
+          item.mediaPath!.endsWith('.mp3') ||
+          item.mediaPath!.endsWith('.ogg') ||
+          item.mediaPath!.endsWith('.amr') ||
+          item.mediaPath!.endsWith('.aac') ||
+          item.mediaPath!.endsWith('.wav'));
+
+      if (isAudioFile && item.mediaPath) {
+        try {
+          await playAudio(item.mediaPath);
+        } catch (_: unknown) {}
+      } else {
+        try {
+          await playPreviewTone();
+        } catch (_: unknown) {}
+        showAppToast('Playing voice message preview');
+      }
+
+      const totalDuration = 15;
+      const startTime = Date.now();
+      playbackTimerRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed >= totalDuration) {
+          void stopCurrentAudio();
+        } else {
+          setElapsedSeconds(Math.floor(elapsed));
+          setPlayingProgress(Math.min(1, elapsed / totalDuration));
+        }
+      }, 100);
+    },
+    [playingAudioId, stopCurrentAudio],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current);
+      }
+      void stopAudio();
+    };
+  }, []);
+
   const isWhatsApp = (packageName || '').toLowerCase().includes('whatsapp');
   const isChatApp =
     isWhatsApp ||
@@ -97,18 +367,22 @@ export default function ChatThread() {
       if (list && list.length > 0) return list;
     }
     // Fallback: search in notifications
-    const all = await queryNotifications({ packages: [packageName], archived: 'include', limit: 200 });
+    const all = await queryNotifications({ packages: [packageName], archived: 'include', limit: 500 });
     if (notificationId) {
       const specific = all.filter((n) => String(n.id) === String(notificationId));
       if (specific.length > 0) return specific;
     }
     if (title) {
-      const matched = all.filter(
-        (n) =>
-          n.title === title ||
-          n.subText === title ||
-          (n.text && n.text.includes(title)),
-      );
+      const cleanTarget = cleanChatTitle(title).toLowerCase();
+      const matched = all.filter((n) => {
+        const cleanItemTitle = cleanChatTitle(n.title).toLowerCase();
+        return (
+          cleanItemTitle === cleanTarget ||
+          cleanItemTitle.includes(cleanTarget) ||
+          cleanTarget.includes(cleanItemTitle) ||
+          (n.subText && n.subText.toLowerCase().includes(cleanTarget))
+        );
+      });
       if (matched.length > 0) return matched;
     }
     return all;
@@ -318,13 +592,24 @@ export default function ChatThread() {
                 new Date(item.postedAt).toDateString() !==
                   new Date(messages[index - 1]!.postedAt).toDateString();
 
-              const imageUri = item.mediaPath
-                ? item.mediaPath.startsWith('file://')
-                  ? item.mediaPath
-                  : `file://${item.mediaPath}`
-                : null;
+              const isVoice = isVoiceMessage(item, body);
+              const isPhoto = isPhotoMessage(item, body);
 
-              const hasImage = Boolean(imageUri);
+              // Discard mistakenly saved contact avatar from Messenger
+              const isBogusAvatar =
+                Boolean(item.mediaPath && item.mediaPath.includes('orca_')) &&
+                (body.toLowerCase().includes('photo') || body.includes('📷'));
+
+              const validImageUri =
+                !isBogusAvatar && item.mediaPath && item.mediaType !== 'audio'
+                  ? item.mediaPath.startsWith('file://')
+                    ? item.mediaPath
+                    : `file://${item.mediaPath}`
+                  : null;
+
+              const hasRealImage = Boolean(validImageUri);
+              const itemId = item.id || item.sbnKey;
+              const isAudioPlaying = playingAudioId === itemId;
 
               return (
                 <View style={{ marginBottom: 14 }}>
@@ -412,7 +697,75 @@ export default function ChatThread() {
                           </View>
                         ) : null}
 
-                        {body && (!hasImage || (!body.includes('Image') && !body.includes('Photo') && !body.includes('📷'))) ? (
+                        {/* 1. Voice Note Message */}
+                        {isVoice ? (
+                          <VoiceNotePlayer
+                            item={item}
+                            isPlaying={isAudioPlaying}
+                            progress={isAudioPlaying ? playingProgress : 0}
+                            elapsedSeconds={isAudioPlaying ? elapsedSeconds : 0}
+                            onTogglePlay={() => void handleTogglePlayAudio(item)}
+                          />
+                        ) : hasRealImage && validImageUri ? (
+                          /* 2. Genuine Sent Photo */
+                          <View>
+                            {body && !isPhoto ? (
+                              <Text
+                                selectable
+                                style={{
+                                  color: '#FFFFFF',
+                                  fontSize: 15,
+                                  lineHeight: 21,
+                                  fontFamily: 'Manrope_500Medium',
+                                  marginBottom: 6,
+                                }}
+                              >
+                                {body}
+                              </Text>
+                            ) : null}
+                            <Pressable
+                              onPress={() => setPreviewImage(validImageUri)}
+                              style={{
+                                borderRadius: 12,
+                                overflow: 'hidden',
+                                position: 'relative',
+                              }}
+                            >
+                              <Image
+                                source={{ uri: validImageUri }}
+                                style={{
+                                  width: 240,
+                                  height: 175,
+                                  borderRadius: 12,
+                                  backgroundColor: '#1C1F27',
+                                }}
+                                resizeMode="cover"
+                              />
+                              <PressableBounce
+                                onPress={() => shareMessage(item)}
+                                hitSlop={8}
+                                scaleTo={0.9}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 8,
+                                  right: 8,
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 14,
+                                  backgroundColor: 'rgba(0,0,0,0.65)',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
+                              </PressableBounce>
+                            </Pressable>
+                          </View>
+                        ) : isPhoto ? (
+                          /* 3. Photo Message Card (Placeholder when payload not embedded - never shows avatar!) */
+                          <PhotoPlaceholderCard caption={body} />
+                        ) : body ? (
+                          /* 4. Normal Text Message */
                           <Text
                             selectable
                             style={{
@@ -424,49 +777,6 @@ export default function ChatThread() {
                           >
                             {body}
                           </Text>
-                        ) : null}
-
-                        {/* Attached Media / Image Card */}
-                        {hasImage && imageUri ? (
-                          <Pressable
-                            onPress={() => setPreviewImage(imageUri)}
-                            style={{
-                              marginTop: body && (!body.includes('Image') && !body.includes('Photo') && !body.includes('📷')) ? 10 : 2,
-                              borderRadius: 12,
-                              overflow: 'hidden',
-                              position: 'relative',
-                            }}
-                          >
-                            <Image
-                              source={{ uri: imageUri }}
-                              style={{
-                                width: 240,
-                                height: 175,
-                                borderRadius: 12,
-                                backgroundColor: '#1C1F27',
-                              }}
-                              resizeMode="cover"
-                            />
-                            {/* Floating Share Button in bottom right of image */}
-                            <PressableBounce
-                              onPress={() => shareMessage(item)}
-                              hitSlop={8}
-                              scaleTo={0.9}
-                              style={{
-                                position: 'absolute',
-                                bottom: 8,
-                                right: 8,
-                                width: 28,
-                                height: 28,
-                                borderRadius: 14,
-                                backgroundColor: 'rgba(0,0,0,0.65)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
-                            </PressableBounce>
-                          </Pressable>
                         ) : null}
 
                         {/* Timestamp (e.g. pm 3:02, pm 3:20) */}

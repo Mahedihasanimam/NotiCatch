@@ -40,6 +40,9 @@ declare class KeepsakeNotificationsModule extends NativeModule<Events> {
   importRecords(json: string): Promise<string>;
   getInstalledApps(): Promise<string>;
   getAppIcon(packageName: string): Promise<string | null>;
+  playAudio(filePath: string): Promise<boolean>;
+  stopAudio(): Promise<boolean>;
+  playPreviewTone(): Promise<boolean>;
 }
 
 export type KeepsakeNativeModule = KeepsakeNotificationsModule;

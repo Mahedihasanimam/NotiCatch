@@ -82,9 +82,8 @@ describe('AppNotificationCard', () => {
     );
 
     expect(screen.getByText('WhatsApp')).toBeTruthy();
-    expect(screen.getAllByText('CSE -65(B) - Personal').length).toBe(2);
-    expect(screen.getByText('~ Ri.Duu : dibi?')).toBeTruthy();
-    expect(screen.getByText('~ Arpita Das : Amr')).toBeTruthy();
+    expect(screen.getAllByText('CSE -65(B) - Personal').length).toBe(1);
+    expect(screen.getByText('2')).toBeTruthy();
   });
 });
 

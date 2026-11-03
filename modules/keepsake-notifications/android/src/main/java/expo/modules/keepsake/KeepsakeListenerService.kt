@@ -166,6 +166,14 @@ class KeepsakeListenerService : NotificationListenerService() {
       title = AppCatalog.label(packageManager, pkg)
     }
 
+    // Normalize repeated titles like "Name: Name" (common in Teams)
+    if (title != null && title.contains(":")) {
+      val colonParts = title.split(":")
+      if (colonParts.size == 2 && colonParts[0].trim() == colonParts[1].trim()) {
+        title = colonParts[0].trim()
+      }
+    }
+
     // Skip empty group summary headers only if they carry no actual message content
     val summary = n.flags and Notification.FLAG_GROUP_SUMMARY != 0
     if (summary && prefs.skipGroupSummary && !isTestNotif && text.isNullOrEmpty() && big.isNullOrEmpty()) {
@@ -184,9 +192,10 @@ class KeepsakeListenerService : NotificationListenerService() {
       NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
     }
 
-    // Try extracting genuine media picture from the notification
-    val mediaPath = extractNotificationImage(n, x, pkg)
-    val mediaType = if (mediaPath != null) "image" else null
+    // Try extracting genuine media (photo or audio) from the notification
+    val media = extractNotificationMedia(n, x, pkg)
+    val mediaPath = media?.path
+    val mediaType = media?.type
 
     val record = NotificationDb.Captured(
       sbnKey = sbn.key,
@@ -230,49 +239,12 @@ class KeepsakeListenerService : NotificationListenerService() {
     if (deleted > 0) ChangeBus.emit("cleanup")
   }
 
-  private fun extractNotificationImage(n: Notification, extras: Bundle, pkg: String): String? {
+  data class ExtractedMedia(val path: String?, val type: String?)
+
+  private fun extractNotificationMedia(n: Notification, extras: Bundle, pkg: String): ExtractedMedia? {
     val prefix = pkg.substringAfterLast('.')
 
-    // 1. Android 31+ BigPictureStyle (EXTRA_PICTURE_ICON = "android.pictureIcon")
-    try {
-      val picIcon = extras.get("android.pictureIcon")
-      if (picIcon is Icon) {
-        val path = MediaSaver.saveIcon(this, picIcon, prefix)
-        if (path != null) return path
-      }
-    } catch (e: Exception) {
-      Log.d(TAG, "EXTRA_PICTURE_ICON check failed", e)
-    }
-
-    // 2. EXTRA_PICTURE ("android.picture") - can be Bitmap or Icon
-    try {
-      val picObj = extras.get(Notification.EXTRA_PICTURE)
-      if (picObj is Bitmap && picObj.width > 24 && picObj.height > 24) {
-        val path = MediaSaver.saveBitmap(this, picObj, prefix)
-        if (path != null) return path
-      } else if (picObj is Icon) {
-        val path = MediaSaver.saveIcon(this, picObj, prefix)
-        if (path != null) return path
-      }
-    } catch (e: Exception) {
-      Log.d(TAG, "EXTRA_PICTURE check failed", e)
-    }
-
-    // 3. EXTRA_LARGE_ICON_BIG ("android.largeIcon.big")
-    try {
-      val bigIconObj = extras.get("android.largeIcon.big")
-      if (bigIconObj is Bitmap && bigIconObj.width > 24 && bigIconObj.height > 24) {
-        val path = MediaSaver.saveBitmap(this, bigIconObj, prefix)
-        if (path != null) return path
-      } else if (bigIconObj is Icon) {
-        val path = MediaSaver.saveIcon(this, bigIconObj, prefix)
-        if (path != null) return path
-      }
-    } catch (e: Exception) {
-      Log.d(TAG, "android.largeIcon.big check failed", e)
-    }
-
-    // 4. EXTRA_MESSAGES ("android.messages") for messaging apps (WhatsApp, Messenger, Telegram)
+    // 1. EXTRA_MESSAGES ("android.messages") for messaging apps (WhatsApp, Messenger, Telegram)
     try {
       val msgs = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
       if (msgs != null) {
@@ -285,45 +257,73 @@ class KeepsakeListenerService : NotificationListenerService() {
             @Suppress("DEPRECATION")
             b.getParcelable("uri") as? Uri
           }
-          if (uri != null && (type?.startsWith("image/") == true || type == null)) {
-            val path = MediaSaver.saveUri(this, uri, prefix)
-            if (path != null) return path
+          if (uri != null) {
+            if (type?.startsWith("audio/") == true) {
+              val ext = when {
+                type.contains("ogg") -> "ogg"
+                type.contains("mp3") -> "mp3"
+                type.contains("amr") -> "amr"
+                type.contains("aac") -> "aac"
+                else -> "m4a"
+              }
+              val path = MediaSaver.saveAudioUri(this, uri, prefix, ext)
+              if (path != null) return ExtractedMedia(path, "audio")
+            } else if (type?.startsWith("image/") == true || type == null) {
+              val path = MediaSaver.saveUri(this, uri, prefix)
+              if (path != null) return ExtractedMedia(path, "image")
+            }
           }
         }
       }
     } catch (e: Exception) {
-      Log.d(TAG, "EXTRA_MESSAGES uri check failed", e)
+      Log.d(TAG, "EXTRA_MESSAGES media check failed", e)
     }
 
-    // 5. Check if text or ticker indicates an image message (e.g. contains 📷 or "Image" or "Photo")
+    // 2. Android 31+ BigPictureStyle (EXTRA_PICTURE_ICON = "android.pictureIcon")
+    try {
+      val picIcon = extras.get("android.pictureIcon")
+      if (picIcon is Icon) {
+        val path = MediaSaver.saveIcon(this, picIcon, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_PICTURE_ICON check failed", e)
+    }
+
+    // 3. EXTRA_PICTURE ("android.picture") - can be Bitmap or Icon
+    try {
+      val picObj = extras.get(Notification.EXTRA_PICTURE)
+      if (picObj is Bitmap && picObj.width > 24 && picObj.height > 24) {
+        val path = MediaSaver.saveBitmap(this, picObj, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      } else if (picObj is Icon) {
+        val path = MediaSaver.saveIcon(this, picObj, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_PICTURE check failed", e)
+    }
+
+    // 4. Fallback: Determine mediaType from text or ticker when the sending app
+    // only sends the push preview without embedding the media bytes in the notification payload.
+    // NOTE: We NEVER use EXTRA_LARGE_ICON here because that is the sender's avatar!
     val textStr = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
     val bigTextStr = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
     val tickerStr = n.tickerText?.toString() ?: ""
-    val isImageNotification = textStr.contains("📷") || textStr.contains("Photo", ignoreCase = true) ||
-                              textStr.contains("Image", ignoreCase = true) ||
-                              bigTextStr.contains("📷") || bigTextStr.contains("Photo", ignoreCase = true) ||
-                              bigTextStr.contains("Image", ignoreCase = true) ||
-                              tickerStr.contains("📷")
+    val combined = "$textStr $bigTextStr $tickerStr".lowercase()
 
-    if (isImageNotification) {
-      try {
-        val largeObj = extras.get(Notification.EXTRA_LARGE_ICON)
-        if (largeObj is Bitmap && largeObj.width > 24 && largeObj.height > 24) {
-          val path = MediaSaver.saveBitmap(this, largeObj, prefix)
-          if (path != null) return path
-        } else if (largeObj is Icon) {
-          val path = MediaSaver.saveIcon(this, largeObj, prefix)
-          if (path != null) return path
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-          val icon = n.getLargeIcon()
-          if (icon != null) {
-            val path = MediaSaver.saveIcon(this, icon, prefix)
-            if (path != null) return path
-          }
-        }
-      } catch (e: Exception) {
-        Log.d(TAG, "largeIcon for image check failed", e)
-      }
+    val isAudio = combined.contains("🎤") || combined.contains("audio message") ||
+                  combined.contains("voice message") || combined.contains("voice note") ||
+                  combined.contains("ভয়েস") || combined.contains("অডিও")
+    if (isAudio) {
+      return ExtractedMedia(null, "audio")
+    }
+
+    val isImage = combined.contains("📷") || combined.contains("sent a photo") ||
+                  combined.contains("photo") || combined.contains("image") ||
+                  combined.contains("ছবি পাঠিয়েছেন")
+    if (isImage) {
+      return ExtractedMedia(null, "image")
     }
 
     return null

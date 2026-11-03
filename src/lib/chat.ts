@@ -36,8 +36,31 @@ export function isChatMessage(record: {
     app.includes('instagram') ||
     pkg.includes('line') ||
     pkg.includes('skype') ||
+    app.includes('skype') ||
     pkg.includes('wechat') ||
-    pkg.includes('imo')
+    pkg.includes('imo') ||
+    pkg.includes('teams') ||
+    app.includes('teams') ||
+    pkg.includes('googlechat') ||
+    pkg.includes('hangouts') ||
+    pkg.includes('zalo')
   );
+}
+
+/**
+ * Normalizes chat titles by removing duplicated sender names like "Name: Name" (common in Teams).
+ */
+export function cleanChatTitle(title: string | null | undefined): string {
+  if (!title) return '';
+  const trimmed = title.trim();
+  const colonIdx = trimmed.indexOf(':');
+  if (colonIdx > 0) {
+    const left = trimmed.slice(0, colonIdx).trim();
+    const right = trimmed.slice(colonIdx + 1).trim();
+    if (left === right) {
+      return left;
+    }
+  }
+  return trimmed;
 }
 

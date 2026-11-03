@@ -16,6 +16,7 @@ import { EmptyState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
 import { getConversations, queryNotifications, setArchived } from '@/data/repository';
 import { useLiveQuery } from '@/hooks/useLiveQuery';
+import { cleanChatTitle } from '@/lib/chat';
 import type { Conversation, NotificationRecord } from '@/lib/types';
 import { useDataVersion } from '@/store/dataVersion';
 import { radius, space } from '@/theme';
@@ -69,35 +70,69 @@ export default function AppChatsScreen() {
     setRefreshing(false);
   };
 
-  // Conversations for this app (if messaging app)
+  // Grouped conversations for this app (ensuring 1 row per contact/chat)
   const appConversations = useMemo(() => {
-    const list = (allConversations ?? []).filter((c) => c.packageName === packageName);
+    // 1. Start with native SQLite conversations for this package
+    const nativeList = (allConversations ?? []).filter((c) => c.packageName === packageName);
+    const map = new Map<string, Conversation>();
+
+    for (const c of nativeList) {
+      const cleanTitle = cleanChatTitle(c.title) || appName;
+      const existing = map.get(cleanTitle);
+      if (!existing) {
+        map.set(cleanTitle, {
+          ...c,
+          title: cleanTitle,
+        });
+      } else {
+        existing.count += c.count;
+        existing.deletedCount += c.deletedCount;
+        existing.unreadCount = (existing.unreadCount ?? 0) + (c.unreadCount ?? 0);
+        if (c.lastPostedAt > existing.lastPostedAt) {
+          existing.lastPostedAt = c.lastPostedAt;
+          existing.lastMessage = c.lastMessage;
+          existing.mediaPath = c.mediaPath;
+          existing.sbnKey = c.sbnKey;
+        }
+      }
+    }
+
+    // 2. Also ensure all notifications for this package are merged and grouped
+    if (allNotifications && allNotifications.length > 0) {
+      for (const n of allNotifications) {
+        const cleanTitle = cleanChatTitle(n.title) || appName;
+        const existing = map.get(cleanTitle);
+        if (!existing) {
+          map.set(cleanTitle, {
+            packageName: n.packageName,
+            appName: n.appName || appName,
+            title: cleanTitle,
+            lastMessage: n.text ?? n.bigText ?? (n.mediaPath ? '📷 Photo' : null),
+            lastPostedAt: n.postedAt,
+            count: 1,
+            deletedCount: n.isDeleted ? 1 : 0,
+            unreadCount: !n.isArchived ? 1 : 0,
+            mediaPath: n.mediaPath,
+            sbnKey: n.sbnKey,
+          });
+        }
+      }
+    }
+
+    let list = Array.from(map.values()).sort((a, b) => b.lastPostedAt - a.lastPostedAt);
+
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      return list.filter(
+      list = list.filter(
         (c) =>
           c.title.toLowerCase().includes(q) ||
           (c.lastMessage?.toLowerCase().includes(q) ?? false),
       );
     }
     return list;
-  }, [allConversations, packageName, search]);
+  }, [allConversations, allNotifications, packageName, appName, search]);
 
-  // Notifications for this app (Screenshot 5 style list)
-  const appNotifications = useMemo(() => {
-    const list = allNotifications ?? [];
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      return list.filter(
-        (n) =>
-          (n.title?.toLowerCase().includes(q) ?? false) ||
-          (n.text?.toLowerCase().includes(q) ?? false),
-      );
-    }
-    return list;
-  }, [allNotifications, search]);
-
-  const hasConversations = isChatApp && appConversations.length > 0;
+  const hasConversations = appConversations.length > 0;
 
   const openThread = (c: Conversation) => {
     router.push({
@@ -266,6 +301,16 @@ export default function AppChatsScreen() {
                         }}
                       />
                     ) : null}
+                    {(item.unreadCount ?? 0) > 0 ? (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: '#EF4444',
+                        }}
+                      />
+                    ) : null}
                     <Text
                       numberOfLines={1}
                       style={{
@@ -303,148 +348,17 @@ export default function AppChatsScreen() {
                     {item.lastMessage ?? 'New message'}
                   </Text>
 
-                  {/* Red dot for unread conversation */}
-                  {(item.unreadCount ?? 0) > 0 ? (
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: '#EF4444',
-                      }}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            </PressableBounce>
-          )}
-        />
-      ) : appNotifications.length > 0 ? (
-        /* Notifications List matching Screenshot 5 (Gmail: Google AdSense, Syncing, KAZI MAHIUDDIN) */
-        <FlatList
-          data={appNotifications}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void onRefresh()}
-              colors={['#0A6C74']}
-              progressBackgroundColor="#2E323F"
-            />
-          }
-          renderItem={({ item }) => (
-            <PressableBounce
-              onPress={() => openNotificationDetail(item)}
-              scaleTo={0.98}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 14,
-                paddingVertical: 14,
-                borderBottomWidth: 1,
-                borderBottomColor: 'rgba(255,255,255,0.06)',
-              }}
-            >
-              <Avatar
-                name={item.title || appName}
-                packageName={item.packageName}
-                appName={item.appName}
-                size={48}
-                showAppBadge={false}
-              />
-
-              <View style={{ flex: 1 }}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 3,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8, gap: 6 }}>
-                    {!item.isArchived ? (
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: '#EF4444',
-                        }}
-                      />
-                    ) : null}
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        fontSize: 15.5,
-                        fontFamily: 'Manrope_700Bold',
-                        color: !item.isArchived ? '#FFFFFF' : '#9CA3AF',
-                        flex: 1,
-                      }}
-                    >
-                      {item.title ?? appName}
-                    </Text>
-                  </View>
-                  <Text style={{ fontSize: 12, color: '#7C8494' }}>
-                    {formatAppTime(item.postedAt)}
-                  </Text>
-                </View>
-
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {item.isDeleted ? (
-                      <View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: '#EF4444',
-                        }}
-                      />
-                    ) : null}
-
-                    {item.mediaPath ? (
-                      <Image
-                        source={{
-                          uri: item.mediaPath.startsWith('file://')
-                            ? item.mediaPath
-                            : `file://${item.mediaPath}`,
-                        }}
-                        style={{ width: 26, height: 26, borderRadius: 4, marginRight: 4 }}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        fontSize: 13.5,
-                        color: item.isDeleted ? '#FCA5A5' : '#9CA3AF',
-                        flex: 1,
-                      }}
-                    >
-                      {item.text || item.bigText || (item.mediaPath ? '📷 Photo' : 'No message text')}
-                    </Text>
-                  </View>
-
-                  {/* Red circular outline unread badge matching Screenshot 5 */}
+                  {/* Count badge showing total messages in this conversation */}
                   <View
                     style={{
-                      width: 20,
+                      minWidth: 20,
                       height: 20,
                       borderRadius: 10,
                       borderWidth: 1.5,
                       borderColor: '#0D9488',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      paddingHorizontal: 5,
                     }}
                   >
                     <Text
@@ -454,7 +368,7 @@ export default function AppChatsScreen() {
                         fontSize: 11,
                       }}
                     >
-                      1
+                      {item.count}
                     </Text>
                   </View>
                 </View>

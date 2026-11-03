@@ -303,6 +303,33 @@ export function ChatsTab() {
                         </Text>
                       </View>
 
+                      {/* Count badge showing total messages in this conversation if > 1 */}
+                      {item.count > 1 ? (
+                        <View
+                          style={{
+                            minWidth: 20,
+                            height: 20,
+                            borderRadius: 10,
+                            borderWidth: 1.5,
+                            borderColor: '#0D9488',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            paddingHorizontal: 5,
+                            marginLeft: 6,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: '#0D9488',
+                              fontFamily: 'Manrope_700Bold',
+                              fontSize: 10.5,
+                            }}
+                          >
+                            {item.count}
+                          </Text>
+                        </View>
+                      ) : null}
+
                       {/* Red dot indicator for unread chat conversation */}
                       {(item.unreadCount ?? 0) > 0 ? (
                         <View
@@ -311,6 +338,7 @@ export function ChatsTab() {
                             height: 8,
                             borderRadius: 4,
                             backgroundColor: '#EF4444',
+                            marginLeft: 6,
                           }}
                         />
                       ) : null}

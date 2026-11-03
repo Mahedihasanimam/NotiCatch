@@ -5,6 +5,9 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +28,7 @@ class KeepsakeNotificationsModule : Module() {
     get() = requireNotNull(appContext.reactContext) { "React context is not available" }
 
   private val db get() = NotificationDb.get(context)
+  private var mediaPlayer: MediaPlayer? = null
 
   override fun definition() = ModuleDefinition {
     Name("KeepsakeNotifications")
@@ -37,7 +41,16 @@ class KeepsakeNotificationsModule : Module() {
         } catch (_: Exception) {}
       }
     }
-    OnDestroy { ChangeBus.listener = null }
+    OnDestroy {
+      ChangeBus.listener = null
+      try {
+        mediaPlayer?.let {
+          if (it.isPlaying) it.stop()
+          it.release()
+        }
+        mediaPlayer = null
+      } catch (_: Exception) {}
+    }
 
     // ---- access ---------------------------------------------------------------------------
     AsyncFunction("isAccessGranted") {
@@ -211,6 +224,55 @@ class KeepsakeNotificationsModule : Module() {
     // ---- installed apps -------------------------------------------------------------------
     AsyncFunction("getInstalledApps") { AppCatalog.launcherApps(context).toString() }
     AsyncFunction("getAppIcon") { pkg: String -> AppCatalog.iconBase64(context, pkg) }
+
+    // ---- audio playback --------------------------------------------------------------------
+    AsyncFunction("playAudio") { filePath: String ->
+      try {
+        mediaPlayer?.let {
+          if (it.isPlaying) it.stop()
+          it.release()
+        }
+        val mp = MediaPlayer()
+        mp.setDataSource(filePath)
+        mp.prepare()
+        mp.start()
+        mp.setOnCompletionListener {
+          try {
+            it.release()
+          } catch (_: Exception) {}
+          mediaPlayer = null
+          ChangeBus.emit("audio_done")
+        }
+        mediaPlayer = mp
+        true
+      } catch (e: Exception) {
+        android.util.Log.w("KeepsakeAudio", "Failed to play audio: $filePath", e)
+        false
+      }
+    }
+
+    AsyncFunction("stopAudio") {
+      try {
+        mediaPlayer?.let {
+          if (it.isPlaying) it.stop()
+          it.release()
+        }
+        mediaPlayer = null
+        true
+      } catch (_: Exception) {
+        false
+      }
+    }
+
+    AsyncFunction("playPreviewTone") {
+      try {
+        val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 60)
+        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+        true
+      } catch (_: Exception) {
+        false
+      }
+    }
   }
 
   private fun parseIds(json: String): List<Long> {

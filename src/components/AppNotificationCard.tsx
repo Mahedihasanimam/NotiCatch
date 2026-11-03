@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Pressable, View } from 'react-native';
+import { cleanChatTitle } from '@/lib/chat';
 import { formatNotisaveRelative } from '@/lib/time';
 import type { NotificationRecord } from '@/lib/types';
 import { AppIcon } from './AppIcon';
@@ -35,6 +36,44 @@ function AppNotificationCardBase({
 }: Props) {
   const isWhatsApp = group.packageName.toLowerCase().includes('whatsapp');
   const unreadCount = group.items.filter((i) => !i.isArchived).length;
+
+  // Group notifications inside this app card by contact / conversation
+  const groupedItems = useMemo(() => {
+    const map = new Map<string, {
+      title: string;
+      latestItem: NotificationRecord;
+      count: number;
+      unreadCount: number;
+      isDeleted: boolean;
+    }>();
+
+    for (const item of group.items) {
+      const rawTitle = item.title ?? group.appName;
+      const cleanTitle = cleanChatTitle(rawTitle) || group.appName;
+      const existing = map.get(cleanTitle);
+
+      if (!existing) {
+        map.set(cleanTitle, {
+          title: cleanTitle,
+          latestItem: item,
+          count: 1,
+          unreadCount: !item.isArchived ? 1 : 0,
+          isDeleted: item.isDeleted,
+        });
+      } else {
+        existing.count += 1;
+        if (!item.isArchived) existing.unreadCount += 1;
+        if (item.isDeleted) existing.isDeleted = true;
+        if (item.postedAt > existing.latestItem.postedAt) {
+          existing.latestItem = item;
+        }
+      }
+    }
+
+    return Array.from(map.values()).sort(
+      (a, b) => b.latestItem.postedAt - a.latestItem.postedAt,
+    );
+  }, [group.items, group.appName]);
 
   return (
     <PressableBounce
@@ -126,12 +165,13 @@ function AppNotificationCardBase({
         </View>
       </View>
 
-      {/* 2. Notification Items inside this App Card */}
+      {/* 2. Notification Items inside this App Card (Grouped by conversation) */}
       <View style={{ gap: 10 }}>
-        {group.items.map((item, index) => {
-          const title = item.title ?? group.appName;
-          const body = item.text ?? item.bigText ?? '';
-          const isUnread = !item.isArchived;
+        {groupedItems.map((entry, index) => {
+          const item = entry.latestItem;
+          const title = entry.title;
+          const body = item.text ?? item.bigText ?? (item.mediaPath ? '📷 Photo' : '');
+          const isUnread = entry.unreadCount > 0;
           const isGroup =
             isWhatsApp &&
             (title.includes('(B)') ||
@@ -142,55 +182,84 @@ function AppNotificationCardBase({
 
           return (
             <Pressable
-              key={`${item.id}-${index}`}
+              key={`${entry.title}-${index}`}
               onPress={() => (onPressItem ? onPressItem(item) : onPress(group))}
               style={({ pressed }) => [{ gap: 2, opacity: pressed ? 0.75 : 1 }]}
             >
-              {/* Line 1: Unread Dot + WhatsApp Group badge + Title */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                {/* Red dot for unread notification item */}
-                {isUnread ? (
+              {/* Line 1: Unread Dot + WhatsApp Group badge + Title + Message Count badge */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  {/* Red dot for unread notification item */}
+                  {isUnread ? (
+                    <View
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 3.5,
+                        backgroundColor: '#EF4444',
+                      }}
+                    />
+                  ) : null}
+
+                  {isGroup ? (
+                    <View
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 2,
+                        backgroundColor: '#9C27B0',
+                      }}
+                    />
+                  ) : null}
+
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontSize: 14.5,
+                      fontFamily: isUnread ? 'Manrope_700Bold' : 'Manrope_600SemiBold',
+                      color: isUnread ? '#FFFFFF' : '#9CA3AF',
+                      flex: 1,
+                    }}
+                  >
+                    {title}
+                  </Text>
+                </View>
+
+                {/* Count badge showing total messages in this conversation if > 1 */}
+                {entry.count > 1 ? (
                   <View
                     style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 3.5,
-                      backgroundColor: '#EF4444',
+                      minWidth: 19,
+                      height: 19,
+                      borderRadius: 9.5,
+                      backgroundColor: 'rgba(13, 148, 136, 0.15)',
+                      borderWidth: 1,
+                      borderColor: '#0D9488',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 4,
                     }}
-                  />
+                  >
+                    <Text
+                      style={{
+                        color: '#0D9488',
+                        fontFamily: 'Manrope_700Bold',
+                        fontSize: 10.5,
+                      }}
+                    >
+                      {entry.count}
+                    </Text>
+                  </View>
                 ) : null}
-
-                {isGroup ? (
-                  <View
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 2,
-                      backgroundColor: '#9C27B0',
-                    }}
-                  />
-                ) : null}
-
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    fontSize: 14.5,
-                    fontFamily: isUnread ? 'Manrope_700Bold' : 'Manrope_600SemiBold',
-                    color: isUnread ? '#FFFFFF' : '#9CA3AF',
-                    flex: 1,
-                  }}
-                >
-                  {title}
-                </Text>
               </View>
 
-              {/* Line 2: Message preview */}
+              {/* Line 2: Latest message preview */}
               {body ? (
                 <Text
                   numberOfLines={1}
                   style={{
                     fontSize: 13.5,
-                    color: item.isDeleted
+                    color: entry.isDeleted
                       ? '#EF4444'
                       : isUnread
                       ? '#D1D5DB'
@@ -198,7 +267,7 @@ function AppNotificationCardBase({
                     paddingLeft: isUnread ? 13 : isGroup ? 18 : 0,
                   }}
                 >
-                  {item.isDeleted ? `🗑️ [Deleted by sender] ${body}` : body}
+                  {entry.isDeleted ? `🗑️ [Deleted by sender] ${body}` : body}
                 </Text>
               ) : null}
             </Pressable>

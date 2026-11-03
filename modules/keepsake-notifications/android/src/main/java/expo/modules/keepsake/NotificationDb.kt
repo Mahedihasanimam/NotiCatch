@@ -250,20 +250,27 @@ class NotificationDb private constructor(context: Context) :
 
   fun conversations(): JSONArray = readableDatabase.rawQuery(
     """
-    SELECT package_name,
-           MAX(app_name) AS app_name,
-           COALESCE(title, app_name) AS contact_title,
-           COALESCE(text, big_text) AS last_msg,
-           MAX(posted_at) AS last_posted_at,
-           COUNT(*) AS total_count,
-           SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) AS deleted_count,
-           MAX(media_path) AS sample_media,
-           sbn_key,
-           SUM(CASE WHEN is_archived = 0 THEN 1 ELSE 0 END) AS unread_count
-    FROM notifications
-    WHERE (title IS NOT NULL OR text IS NOT NULL)
-    GROUP BY package_name, COALESCE(title, app_name)
-    ORDER BY last_posted_at DESC
+    SELECT n.package_name,
+           n.app_name,
+           COALESCE(n.title, n.app_name) AS contact_title,
+           COALESCE(n.text, n.big_text) AS last_msg,
+           n.posted_at AS last_posted_at,
+           g.total_count,
+           g.deleted_count,
+           n.media_path AS sample_media,
+           n.sbn_key,
+           g.unread_count
+    FROM notifications n
+    JOIN (
+      SELECT MAX(id) AS latest_id,
+             COUNT(*) AS total_count,
+             SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) AS deleted_count,
+             SUM(CASE WHEN is_archived = 0 THEN 1 ELSE 0 END) AS unread_count
+      FROM notifications
+      WHERE (title IS NOT NULL OR text IS NOT NULL)
+      GROUP BY package_name, COALESCE(title, app_name)
+    ) g ON n.id = g.latest_id
+    ORDER BY n.posted_at DESC, n.id DESC
     """,
     null,
   ).use { c ->
@@ -348,6 +355,24 @@ class NotificationDb private constructor(context: Context) :
     val deletedAt: Long? = null,
   )
 
+  fun sanitizeBadAvatars() = synchronized(lock) {
+    try {
+      val db = writableDatabase
+      // Clear media_path where contact avatar from Messenger was mistakenly saved as image
+      db.execSQL(
+        "UPDATE notifications SET media_path = NULL, media_type = 'image' WHERE (media_path LIKE '%orca_%' OR package_name = 'com.facebook.orca') AND (text LIKE '%Sent a photo%' OR text LIKE '%📷%' OR big_text LIKE '%Sent a photo%' OR big_text LIKE '%📷%')"
+      )
+      // Fix voice messages where media_type was not set
+      db.execSQL(
+        "UPDATE notifications SET media_type = 'audio' WHERE media_type IS NULL AND (text LIKE '%audio message%' OR text LIKE '%🎤%' OR big_text LIKE '%audio message%' OR big_text LIKE '%🎤%')"
+      )
+      // Clean repeated titles like "Kazi Omar Faruk: Kazi Omar Faruk" into "Kazi Omar Faruk"
+      db.execSQL(
+        "UPDATE notifications SET title = TRIM(SUBSTR(title, 1, INSTR(title, ':') - 1)) WHERE title LIKE '%:%' AND TRIM(SUBSTR(title, 1, INSTR(title, ':') - 1)) = TRIM(SUBSTR(title, INSTR(title, ':') + 1))"
+      )
+    } catch (_: Exception) {}
+  }
+
   companion object {
     const val DB_NAME = "keepsake_notifications.db"
     const val DB_VERSION = 3
@@ -390,7 +415,12 @@ class NotificationDb private constructor(context: Context) :
 
     @Volatile private var instance: NotificationDb? = null
     fun get(context: Context): NotificationDb =
-      instance ?: synchronized(this) { instance ?: NotificationDb(context).also { instance = it } }
+      instance ?: synchronized(this) {
+        instance ?: NotificationDb(context).also {
+          instance = it
+          try { it.sanitizeBadAvatars() } catch (_: Exception) {}
+        }
+      }
   }
 }
 
