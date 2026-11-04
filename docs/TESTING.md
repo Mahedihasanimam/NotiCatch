@@ -8,8 +8,8 @@ adb shell cmd notification post -S bigtext -t "Ana" Tag1 "Lunch at 1?"       # p
 adb shell cmd notification post -t "Same key" Tag1 "Updated text"             # update same tag
 adb logcat -s KeepsakeListener                                                 # service logs
 adb shell dumpsys notification | grep -A3 keepsake                             # listener state
-adb shell cmd notification allow_listener com.noticatch.app/expo.modules.keepsake.KeepsakeListenerService   # grant w/o UI (debug)
-adb shell cmd notification disallow_listener com.noticatch.app/expo.modules.keepsake.KeepsakeListenerService # revoke
+adb shell cmd notification allow_listener com.mehedi.noticatch.app/expo.modules.keepsake.KeepsakeListenerService   # grant w/o UI (debug)
+adb shell cmd notification disallow_listener com.mehedi.noticatch.app/expo.modules.keepsake.KeepsakeListenerService # revoke
 ```
 
 ## Checklist
@@ -25,7 +25,7 @@ adb shell cmd notification disallow_listener com.noticatch.app/expo.modules.keep
 10. **PIN & biometrics:** set PIN, background the app → locks; wrong PIN ×5 → delay; biometric prompt does not cause a lock loop; back button doesn't bypass lock; remove PIN.
 11. **Force-stop persistence:** Settings → Apps → NotiCatch → Force stop; reopen: history intact; service rebinds after next notification/boot.
 12. **Export & restore:** export CSV (open in a spreadsheet; cells starting with `=` are prefixed `'`), JSON; create backup, clear all history, restore; try a corrupted/edited backup → rejected with message, nothing imported.
-13. **Release sanity:** `adb shell dumpsys package com.noticatch.app | grep permission` shows no INTERNET; airplane-mode irrelevant.
+13. **Release sanity:** `adb shell dumpsys package com.mehedi.noticatch.app | grep permission` shows no INTERNET; airplane-mode irrelevant.
 
 ## Kotlin unit tests
 After `npx expo prebuild --platform android`: `cd android && ./gradlew :keepsake-notifications:testDebugUnitTest`.

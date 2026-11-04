@@ -1,15 +1,15 @@
-/** Single source for the in-app policy and docs/PRIVACY_POLICY.md. Replace the contact line before publishing. */
+/** Single source for the in-app policy and docs/PRIVACY_POLICY.md. */
 export const PRIVACY_POLICY = {
   title: 'NotiCatch Privacy Policy',
-  updated: '2 November 2026',
+  updated: '4 November 2026',
   sections: [
-    { heading: 'Summary', body: 'NotiCatch saves the notifications your Android device shows so you can read them later. Everything stays on your device. The release app does not request internet access and has no servers, analytics or advertising.' },
-    { heading: 'What NotiCatch reads', body: 'After you turn on notification access in Android settings, NotiCatch receives the notifications other apps post: app name, title, text, time, category and whether it was later dismissed. Android decides what is exposed. Content that an app hides, or that Android redacts, cannot be saved, and notifications posted while access was off cannot be recovered.' },
-    { heading: 'Where it is stored', body: 'Notifications are kept in a private database inside NotiCatch’s app storage. Android’s cloud and device-transfer backup is disabled for the app. Your PIN is stored only as a salted hash in the Android keystore.' },
-    { heading: 'What is shared', body: 'Nothing is transmitted by NotiCatch. If you export or back up, the file is handed to the app you choose in Android’s share sheet; from then on that file is governed by the destination you picked.' },
-    { heading: 'Your controls', body: 'You can exclude apps, pause capture, delete single items or everything, set automatic deletion, lock the app with a PIN or biometrics, and revoke notification access at any time in Android settings. Uninstalling the app or clearing its data erases the saved history.' },
-    { heading: 'Sensitive content', body: 'Notifications can contain private messages, codes and personal details. Use the PIN lock and exclude apps you do not want stored. NotiCatch does not monitor you for anyone else and has no hidden mode.' },
-    { heading: 'Children', body: 'NotiCatch is not directed at children under 13.' },
-    { heading: 'Changes and contact', body: 'If this policy changes, the updated version ships inside the app. Contact: teamriskmade@gmail.com.' },
+    { heading: '1. Summary', body: 'NotiCatch by Team Risk Made is an offline notification history and deleted message recovery utility. Everything stays strictly on your device. The release app requests NO internet permission and operates zero servers, advertising, or tracking SDKs.' },
+    { heading: '2. Data Accessed', body: 'When you enable Notification Access in Android settings, NotiCatch reads incoming notification titles, message bodies, sender labels, and media attachments. It only reads what Android exposes to the notification listener. Hidden or redacted notifications cannot be saved.' },
+    { heading: '3. Purpose of Processing', body: 'Collected notification data is used solely to provide searchable notification archives, conversation groupings, and deleted message recovery for your personal viewing and reference.' },
+    { heading: '4. Storage & Security', body: 'Notifications are stored in a private SQLite database inside NotiCatch’s internal sandboxed storage. Android cloud and device-transfer auto-backup is disabled (allowBackup=false). PIN codes are stored as salted hashes in the Android Keystore, and biometric authentication uses Android’s official BiometricPrompt API.' },
+    { heading: '5. Data Sharing', body: 'Zero personal data is transmitted, uploaded, or shared by NotiCatch. Exported or backed-up files are handed directly to Android’s share sheet under your explicit control.' },
+    { heading: '6. Your Controls & Data Deletion', body: 'You can exclude apps, pause capture, delete single or all notifications, set automatic retention cleanup (7/15/30/90 days), and revoke Notification Access at any time in Android settings. Uninstalling the app permanently erases all saved records.' },
+    { heading: '7. Children’s Privacy', body: 'NotiCatch is not directed at children under the age of 13, and does not knowingly collect data from children.' },
+    { heading: '8. Contact Information', body: 'Developed by Team Risk Made. For questions, support, or privacy inquiries, contact: teamriskmade@gmail.com.' },
   ],
 } as const;

@@ -94,7 +94,7 @@ export function promptNotificationPermissionIfNeeded(): boolean {
   useDialog.getState().showDialog({
     title: 'Notification Access Required',
     message:
-      'NotiCatch needs Notification Access to automatically save incoming notifications and recover deleted messages. Would you like to enable it in Settings now?',
+      'NotiCatch needs Notification Access to save incoming notifications and recover deleted messages locally. All data stays 100% on your device and is never uploaded or shared. Would you like to enable it in Settings now?',
     confirmText: 'Open Settings',
     cancelText: 'Not Now',
     icon: 'notifications',

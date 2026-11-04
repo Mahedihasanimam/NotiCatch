@@ -3,17 +3,18 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'NotiCatch',
   slug: 'noticatch',
+  owner: 'mahedi25-2',
   scheme: 'noticatch',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
   ios: {
-    bundleIdentifier: 'com.noticatch.app',
+    bundleIdentifier: 'com.mehedi.noticatch.app',
     supportsTablet: false,
   },
   android: {
-    package: 'com.noticatch.app',
+    package: 'com.mehedi.noticatch.app',
     versionCode: 1,
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
     adaptiveIcon: {
@@ -56,7 +57,12 @@ const config: ExpoConfig = {
     ],
   ],
   experiments: { typedRoutes: true },
-  extra: { variant: 'production', eas: { projectId: process.env.EAS_PROJECT_ID } },
+  extra: {
+    variant: 'production',
+    eas: {
+      projectId: process.env.EAS_PROJECT_ID ?? 'd5b16d25-12b1-458c-8ea9-c158abe444e9',
+    },
+  },
 };
 
 export default config;

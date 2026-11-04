@@ -9,5 +9,6 @@ web-build/
 *.keystore
 *.jks
 coverage/
+build/
 .env*
 expo-env.d.ts

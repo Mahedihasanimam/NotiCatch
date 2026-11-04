@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:683832739430:android:a3f03d06e4dbbb59df0fa7",
         "android_client_info": {
-          "package_name": "com.noticatch.app"
+          "package_name": "com.mehedi.noticatch.app"
         }
       },
       "oauth_client": [
@@ -67,7 +67,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:683832739430:android:b582ea17fa0ef12cdf0fa7",
         "android_client_info": {
-          "package_name": "com.noticatch.app"
+          "package_name": "com.mehedi.noticatch.app"
         }
       },
       "oauth_client": [

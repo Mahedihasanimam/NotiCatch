@@ -1,18 +1,48 @@
 # NotiCatch Privacy Policy
-_Last updated 2 November 2026 — draft; add your contact email and have it legally reviewed before publishing._
+_Last updated: 4 November 2026 — Effective for NotiCatch by Team Risk Made_
 
-**Summary.** NotiCatch saves the notifications your Android device shows so you can read them later. Everything stays on your device. The release app does not request internet access and has no servers, analytics or advertising.
+**1. Summary.**
+NotiCatch ("we", "our", or "the app"), developed by Team Risk Made, is an offline notification history and deleted message recovery utility for Android. We respect your privacy: everything captured stays strictly on your device. The release application does not request internet access (`android.permission.INTERNET` is completely removed), contains no third-party analytics or tracking SDKs, displays no advertisements, and operates zero external servers.
 
-**What NotiCatch reads.** After you turn on notification access in Android settings, NotiCatch receives the notifications other apps post: app name, title, text, time, category and whether it was later dismissed. Android decides what is exposed. Content that an app hides, or that Android redacts, cannot be saved, and notifications posted while access was off cannot be recovered.
+**2. Data Accessed & Notification Listener Service.**
+When you explicitly grant Notification Access (`android.permission.BIND_NOTIFICATION_LISTENER_SERVICE`) in Android settings, NotiCatch receives notification payloads posted by other apps on your device. This includes:
+- Application package name and app label
+- Notification title, text message content, and timestamp
+- Notification category and dismissal state
+- Media previews (attached photos or voice notes where provided in notification extras)
 
-**Where it is stored.** In a private database inside NotiCatch's app storage. Android cloud and device-transfer backup is disabled for the app. Your PIN is stored only as a salted hash in the Android keystore. The database is not separately encrypted; it relies on Android's app sandbox and device encryption.
+NotiCatch only reads data that Android passes to the notification listener. Any data hidden or redacted by Android (e.g., sensitive lock-screen content) is not received.
 
-**What is shared.** Nothing is transmitted by NotiCatch. If you export or back up, the file goes to the app you choose in Android's share sheet and is then governed by that destination.
+**3. Purpose of Processing.**
+The collected notification data is processed solely for the following user-facing purposes:
+- Providing an on-device searchable archive of missed or dismissed notifications
+- Grouping conversation messages by contact for easy reading
+- Recovering sender-deleted messages for your personal reference
+- Allowing single-tap native redirection back to the originating app via Android's `PendingIntent`
 
-**Your controls.** Exclude apps, pause capture, delete items or everything, set automatic deletion, lock with PIN/biometrics, revoke access any time. Uninstalling or clearing app data erases the history.
+**4. Storage and Data Security.**
+- All notification records are stored in a private local SQLite database within NotiCatch's sandboxed internal app storage.
+- Cloud and device-to-device auto-backups (`android:allowBackup="false"`) are strictly disabled to prevent notification data from leaking to cloud storage.
+- PIN codes are hashed using cryptographic salt iterations and secured via the Android Keystore system.
+- Biometric authentication (fingerprint/face) utilizes Android's official `BiometricPrompt` API; biometric data is processed entirely by the device hardware and is never accessible to NotiCatch.
 
-**Sensitive content.** Notifications can contain private messages, one-time codes and personal details. Use the PIN lock and exclude apps you don't want stored. NotiCatch has no hidden mode and does not monitor you for anyone else.
+**5. Data Sharing and Third-Party Transfer.**
+NotiCatch does not collect, sell, lease, or transmit your personal data to any external entity or third-party server.
+If you deliberately use the "Export" or "Backup" features, the resulting file is passed directly to Android's system share sheet, where you control the final destination.
 
-**Children.** Not directed at children under 13.
+**6. User Rights & Data Deletion.**
+You maintain absolute control over your data at all times:
+- **Block Apps:** You can exclude specific applications from being captured.
+- **Delete Specific or All Data:** You can delete individual notifications, clear entire chat histories, or execute "Clear All Data" directly from within the app.
+- **Auto-Cleanup:** You can configure automatic retention rules (e.g., 7, 15, 30, or 90 days).
+- **Revoke Permissions:** You can revoke Notification Access at any time via Android System Settings.
+- **Complete Erasure:** Uninstalling the app or clearing app storage in Android Settings instantly and permanently deletes all stored notification history.
 
-**Changes and contact.** Updates ship inside the app. Contact: teamriskmade@gmail.com.
+**7. Children's Privacy.**
+NotiCatch is not directed toward children under the age of 13, and we do not knowingly collect information from children.
+
+**8. Changes & Contact Information.**
+If this Privacy Policy is updated, the changes will be reflected within the app.
+For questions, support, or privacy inquiries, contact us at:
+- **Developer:** Team Risk Made
+- **Email:** teamriskmade@gmail.com
