@@ -90,7 +90,9 @@ function isPhotoMessage(item: NotificationRecord, bodyText: string) {
     lower.includes('📷') ||
     lower.includes('sent a photo') ||
     lower.includes('photo') ||
-    lower.includes('ছবি পাঠিয়েছেন')
+    lower.includes('image') ||
+    lower.includes('picture') ||
+    lower.includes('ছবি')
   );
 }
 
@@ -199,9 +201,10 @@ function VoiceNotePlayer({
 
 interface PhotoPlaceholderCardProps {
   caption?: string | null;
+  appName?: string;
 }
 
-function PhotoPlaceholderCard({ caption }: PhotoPlaceholderCardProps) {
+function PhotoPlaceholderCard({ caption, appName }: PhotoPlaceholderCardProps) {
   const displayCaption =
     caption && !caption.includes('📷') && !caption.toLowerCase().includes('sent a photo')
       ? caption
@@ -210,51 +213,73 @@ function PhotoPlaceholderCard({ caption }: PhotoPlaceholderCardProps) {
   return (
     <View
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
         backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 12,
-        padding: 10,
-        gap: 12,
-        minWidth: 210,
+        borderRadius: 14,
+        padding: 12,
+        minWidth: 220,
+        maxWidth: 270,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: 'rgba(0, 229, 255, 0.25)',
       }}
     >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            backgroundColor: 'rgba(10, 108, 116, 0.35)',
+            borderWidth: 1,
+            borderColor: 'rgba(0, 229, 255, 0.4)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="camera" size={20} color="#00E5FF" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 14,
+              fontFamily: 'Manrope_700Bold',
+            }}
+          >
+            Photo
+          </Text>
+          <Text
+            style={{
+              color: '#94A3B8',
+              fontSize: 12,
+              fontFamily: 'Manrope_500Medium',
+            }}
+            numberOfLines={1}
+          >
+            {displayCaption}
+          </Text>
+        </View>
+      </View>
+
+      {/* Tap hint to open real app */}
       <View
         style={{
-          width: 42,
-          height: 42,
-          borderRadius: 10,
-          backgroundColor: 'rgba(10, 108, 116, 0.3)',
-          borderWidth: 1,
-          borderColor: 'rgba(0, 229, 255, 0.4)',
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: 5,
+          paddingTop: 6,
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255, 255, 255, 0.06)',
         }}
       >
-        <Ionicons name="camera" size={22} color="#00E5FF" />
-      </View>
-      <View style={{ flex: 1 }}>
+        <Ionicons name="open-outline" size={13} color="#2DD4BF" />
         <Text
           style={{
-            color: '#FFFFFF',
-            fontSize: 14.5,
-            fontFamily: 'Manrope_700Bold',
+            fontSize: 11.5,
+            fontFamily: 'Manrope_600SemiBold',
+            color: '#2DD4BF',
           }}
         >
-          Photo
-        </Text>
-        <Text
-          style={{
-            color: '#8E94A5',
-            fontSize: 12,
-            fontFamily: 'Manrope_500Medium',
-            marginTop: 2,
-          }}
-          numberOfLines={1}
-        >
-          {displayCaption}
+          Tap to view photo in {appName || 'App'}
         </Text>
       </View>
     </View>
@@ -405,19 +430,53 @@ export default function ChatThread() {
     }
   }, [rawMessages]);
 
-  // Sort messages chronologically (oldest first, newest at bottom)
+  // Sort messages chronologically and de-duplicate repeated voice notes or duplicate alerts
   const messages = useMemo(() => {
     if (!rawMessages) return [];
     const sorted = [...rawMessages].sort((a, b) => a.postedAt - b.postedAt);
+
+    // De-duplicate consecutive identical messages (e.g. repeated voice note notifications or duplicate alerts within 2 minutes)
+    const deduplicated: NotificationRecord[] = [];
+    for (const msg of sorted) {
+      const prev = deduplicated[deduplicated.length - 1];
+      if (prev) {
+        const rawCurrent = (msg.text ?? msg.bigText ?? '').trim().toLowerCase();
+        const rawPrev = (prev.text ?? prev.bigText ?? '').trim().toLowerCase();
+        const isVoiceCurrent = isVoiceMessage(msg, rawCurrent);
+        const isVoicePrev = isVoiceMessage(prev, rawPrev);
+        const isPhotoCurrent = isPhotoMessage(msg, rawCurrent);
+        const isPhotoPrev = isPhotoMessage(prev, rawPrev);
+
+        const closeInTime = Math.abs(msg.postedAt - prev.postedAt) < 120000; // within 2 minutes
+        const sameSender = (msg.title || '') === (prev.title || '');
+
+        // 1. If both are voice messages from same sender within 2 min -> duplicate!
+        if (isVoiceCurrent && isVoicePrev && sameSender && closeInTime) {
+          continue;
+        }
+
+        // 2. If both are photo placeholders without media from same sender within 2 min -> duplicate!
+        if (isPhotoCurrent && isPhotoPrev && !msg.mediaPath && !prev.mediaPath && sameSender && closeInTime) {
+          continue;
+        }
+
+        // 3. If exact same text from same sender within 2 min -> duplicate!
+        if (rawCurrent && rawCurrent === rawPrev && sameSender && closeInTime) {
+          continue;
+        }
+      }
+      deduplicated.push(msg);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      return sorted.filter(
+      return deduplicated.filter(
         (m) =>
           (m.text && m.text.toLowerCase().includes(q)) ||
           (m.title && m.title.toLowerCase().includes(q)),
       );
     }
-    return sorted;
+    return deduplicated;
   }, [rawMessages, searchQuery]);
 
   const handleSend = async () => {
@@ -742,7 +801,7 @@ export default function ChatThread() {
                           </View>
                         ) : isPhoto ? (
                           /* 3. Photo Message Card (Placeholder when payload not embedded - never shows avatar!) */
-                          <PhotoPlaceholderCard caption={body} />
+                          <PhotoPlaceholderCard caption={body} appName={appName} />
                         ) : body ? (
                           /* 4. Normal Text Message */
                           <Text

@@ -40,11 +40,30 @@ class NotificationDb private constructor(context: Context) :
     val db = writableDatabase
     db.beginTransaction()
     try {
-      val dup = db.rawQuery(
-        "SELECT 1 FROM notifications WHERE sbn_key = ? AND content_hash = ? AND removed_at IS NULL LIMIT 1",
+      // 1. Exact content hash check (regardless of removed_at, don't insert identical notification)
+      val hashDup = db.rawQuery(
+        "SELECT 1 FROM notifications WHERE sbn_key = ? AND content_hash = ? LIMIT 1",
         arrayOf(r.sbnKey, r.contentHash),
       ).use { it.moveToFirst() }
-      if (dup) return false
+      if (hashDup) return false
+
+      // 2. Prevent rapid duplicate insertions of the same text/message from the same sender within 2 minutes
+      if (!r.text.isNullOrEmpty()) {
+        val recentDup = db.rawQuery(
+          """
+          SELECT 1 FROM notifications 
+          WHERE package_name = ? 
+            AND COALESCE(title, '') = COALESCE(?, '') 
+            AND COALESCE(text, '') = COALESCE(?, '')
+            AND posted_at >= ? - 120000 
+            AND posted_at <= ? + 120000 
+          LIMIT 1
+          """,
+          arrayOf(r.packageName, r.title ?: "", r.text ?: "", r.postedAt.toString(), r.postedAt.toString()),
+        ).use { it.moveToFirst() }
+        if (recentDup) return false
+      }
+
       val v = ContentValues().apply {
         put("sbn_key", r.sbnKey); put("package_name", r.packageName); put("app_name", r.appName)
         put("title", r.title); put("text", r.text); put("big_text", r.bigText); put("sub_text", r.subText)

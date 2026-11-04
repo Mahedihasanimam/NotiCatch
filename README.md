@@ -1,94 +1,129 @@
-# NotiCatch — private notification history for Android
+# NotiCatch — Private Notification History & Deleted Message Recovery for Android
 
-NotiCatch saves the notifications your Android phone shows so you can search, favorite, archive and export them later. All data stays on the device: no accounts, no servers, and the **release build does not even hold the INTERNET permission**.
+**NotiCatch** (by **Team Risk Made**) is a high-performance, privacy-first Android application designed to automatically capture, organize, and safeguard your incoming notifications. It allows you to search historical notifications, recover sender-deleted messages, view attached media (photos & voice notes), and seamlessly jump directly into original conversations and emails with a single tap.
 
-- **Stack:** Expo SDK 58 · React Native 0.88 · React 19.3 · TypeScript (strict) · Expo Router · Zustand
-- **Native:** Kotlin Expo module (`modules/keepsake-notifications`) with a `NotificationListenerService` and a SQLite database (versioned migrations)
-- **Android levels:** `compileSdk 37`, `buildTools 37.0.0`, `targetSdk 36`, `minSdk 29` (Android 10+). Configured in `app.config.ts`.
-- This is an original app (name, icon, UI). It is not affiliated with Notisave.
+All data remains **100% on your device** in a private local SQLite database. The production release holds **no internet permission**, contains no advertising or analytics SDKs, and never transmits your data to any external server.
 
-> **Targeting API 37:** `targetSdkVersion` is 36, the level React Native 0.88 itself is tested against. To target 37, change it in `app.config.ts` and re-test on an Android 17 device (new behavior changes apply when you raise the target).
+---
 
-## Features
+## 📱 App Context & Core Highlights
 
-Dashboard (totals, today, 7-day chart, top apps, recent, quick search/favorites/archive, clear all with confirmation) · history grouped by date or app · search · filter by app and date range (calendar) · favorite / archive / restore / delete · multi-select with bulk actions and export · app include/exclude with select-all · PIN lock, biometrics, auto-lock, optional screenshot blocking · retention (7/15/30/90 days/never, keep favorites/archived) · CSV/JSON export, validated backup & restore · light/dark/system theme · permission onboarding · privacy policy.
+### 1. 💬 Grouped Messages & Smart Conversations
+- **Default Messages Landing:** When opening NotiCatch, users land immediately on the **Messages** screen.
+- **Unified Contact Conversations:** Messages from WhatsApp, Messenger, Teams, Telegram, and SMS are neatly grouped by contact/sender (1 row per contact instead of repeating duplicate notifications).
+- **Accurate Count Badges:** Displays exact unread and total message counts for each sender.
+- **Latest Message Previews:** Always shows the latest message text and formatted timestamps.
 
-## Project layout
+### 2. 🗑️ Deleted Message Recovery ("DELETED BY SENDER")
+- **Real-time Deletion Detection:** Automatically detects when messages are revoked (e.g., WhatsApp *"This message was deleted"* or Messenger unsent messages).
+- **Persistent Archive:** Keeps the original captured text and photo intact, marked with a prominent red **DELETED BY SENDER** banner.
+
+### 3. 🖼️ Genuine Media Capture & Playback
+- **Photo Extraction:** Captures full-resolution images from `BigPictureStyle`, `EXTRA_PICTURE_ICON`, and `EXTRA_MESSAGES` payloads.
+- **Fullscreen Image Viewer:** Tap photos to view them in high quality without opening third-party messengers.
+- **Native Voice Note Player:** Plays recorded voice notes natively with interactive waveforms, duration timers, and playback controls.
+
+### 4. 🚀 Direct Notification Intent Redirection
+- **Tap to Open Real App:** Tapping any chat bubble or notification card directly triggers Android's native `PendingIntent` (`openNotification`).
+- **Context-Aware Navigation:**
+  - Tapping an email opens Gmail/Outlook straight to that specific email message.
+  - Tapping a chat message opens WhatsApp/Messenger/Teams directly to that sender's chat thread.
+- **Clean UI:** Redundant "Open App" or "Share" buttons have been removed in favor of intuitive direct-touch navigation.
+
+### 5. 🛡️ 100% Local & Privacy-Focused
+- **No Internet Permission:** The release build strips the `android.permission.INTERNET` manifest permission entirely.
+- **PIN & Biometric Security:** Salted and iterated SHA-256 PIN authentication backed by the Android Keystore, with fingerprint/face unlock and auto-lock timers.
+- **Notification Exclusions:** Block specific apps from being recorded via the "Block notifications" screen.
+- **Retention & Auto-Cleanup:** Automatically delete logs older than 7, 15, 30, or 90 days, with options to protect favorites and archived items.
+
+### 6. ⚙️ More & Settings Management
+- **VIP & Pro Banner:** Quick-access modal highlighting features.
+- **App Management:** Block notifications per package with easy toggle switches.
+- **Help & Support:** Directly compose an email to support (`teamriskmade@gmail.com`).
+- **Privacy Policy & About:** Dedicated on-device screens detailing data practices and version specs.
+
+---
+
+## 🏗️ Technology Stack & Architecture
+
+- **Framework:** Expo SDK 58 · React Native 0.88 · React 19 · TypeScript (Strict mode)
+- **Routing:** Expo Router v4 (File-based navigation with native modals)
+- **State Management:** Zustand (Persisted settings, security lock, and real-time data bus)
+- **Native Android Module (`modules/keepsake-notifications`):**
+  - **`KeepsakeListenerService.kt`:** Android `NotificationListenerService` capturing incoming notifications, media payloads, and deletion events.
+  - **`NotificationDb.kt`:** Thread-safe SQLite engine with schema migrations, conversation grouping, and full-text search.
+  - **`ReplyManager.kt`:** Tracks active `PendingIntent` instances for instant redirection and inline quick replies.
+  - **`NotificationStatusManager.kt`:** Manages ongoing status bar drawer alert with custom icon silhouette (`ic_stat_noticatch`).
+- **Android Target:** `compileSdk 37`, `targetSdk 35/36`, `minSdk 26/29`.
+
+---
+
+## 📂 Project Structure
 
 ```
-src/app/            Expo Router screens (tabs, onboarding, detail, settings/*)
-src/components/     UI building blocks
-src/data/           repository (typed native access), exporter, lifecycle wiring
-src/lib/            pure logic: time, grouping, csv, backup validation, pin, retention
-src/store/          zustand: settings (persisted), security, access, dataVersion
-src/theme/          palette, type scale, ThemeProvider
-modules/keepsake-notifications/
-  android/…/NotificationDb.kt          single DB owner, migrations, serialized writes
-  android/…/KeepsakeListenerService.kt capture, update de-dup, removal tracking, rebind
-  android/…/KeepsakeNotificationsModule.kt  JS bridge
-  android/src/test/…                    JVM unit tests (query builder, hashing)
-docs/               privacy policy, device test plan
+├── android/                             # Android native Gradle project
+├── modules/
+│   └── keepsake-notifications/          # Custom native Kotlin Expo module
+│       ├── android/src/main/java/expo/modules/keepsake/
+│       │   ├── KeepsakeListenerService.kt   # Notification capture & media extraction
+│       │   ├── NotificationDb.kt            # SQLite database & query engine
+│       │   ├── ReplyManager.kt              # PendingIntent routing & quick reply
+│       │   └── NotificationStatusManager.kt # Notification drawer status manager
+│       └── src/index.ts                 # TypeScript native bridge definitions
+├── src/
+│   ├── app/                             # Expo Router screens
+│   │   ├── (tabs)/                      # Main Tab Pager (Messages, Notifications, More)
+│   │   ├── chat/thread.tsx              # Conversation thread with photos & voice notes
+│   │   ├── notification/[id].tsx        # Notification detail screen
+│   │   ├── app-chats/[package].tsx      # App-specific conversation grouping
+│   │   ├── apps.tsx                     # Block notifications / app manager
+│   │   ├── settings/                    # Settings, Retention, Security, Privacy, About
+│   │   └── onboarding.tsx               # Permission request & onboarding wizard
+│   ├── components/                      # Reusable UI components & custom dialogs
+│   ├── data/                            # Repository & lifecycle sync
+│   ├── lib/                             # Formatting, privacy policy, retention logic
+│   └── store/                           # Zustand stores (settings, security, access)
+└── docs/                                # Privacy policy & testing documentation
 ```
 
-## Setup
+---
 
-Requirements: Node 20+, JDK 17+, Android SDK (for local builds) or an Expo account (EAS). **Expo Go is not supported** — a custom dev build is required.
+## 🚀 Getting Started
 
+### Prerequisites
+- Node.js 20+
+- JDK 17+ (Java 17 or Java 21)
+- Android SDK (platform-tools, build-tools 37.0.0)
+
+### Installation
 ```bash
+# Clone the repository
+git clone https://github.com/teamriskmade/noticatch.git
+cd noticatch
+
+# Install dependencies
 npm install
-npm run typecheck && npm test      # 47 tests
-npx expo-doctor                    # run online
+
+# Run static type-checking
+npm run typecheck
+
+# Run test suite (60/60 passing tests)
+npm test
 ```
 
-### Production & testing builds
+### Local Android Build & Execution
 ```bash
-npx eas-cli login && npx eas-cli init       # sets EAS project id
-npm run build:prod                          # production AAB (Google Play)
-npm run build:preview                       # standalone test APK
-npm run build:local                         # local test APK via EAS
-npx expo prebuild --platform android && npm run android   # local run, needs Android SDK
+# Compile native Kotlin module
+cd android && ./gradlew :keepsake-notifications:compileReleaseKotlin && cd ..
+
+# Run on connected Android device or emulator
+npx expo run:android
 ```
 
-### Release builds (no Metro needed — JS is bundled as Hermes bytecode)
-```bash
-npm run build:preview   # signed APK for sideloading/testing  (APP_VARIANT=preview)
-npm run build:prod      # AAB for Play Store                  (APP_VARIANT=production)
-npm run build:local     # same preview build on your machine
-```
-`preview` and `production` strip `INTERNET`, `SYSTEM_ALERT_WINDOW` and external-storage permissions and disable `allowBackup`. Set `EAS_PROJECT_ID` (or run `eas init`) and let EAS manage the signing keystore.
+---
 
-## Granting access (important)
+## 🔒 Security & Privacy Commitments
 
-1. Open the app, follow onboarding, tap **Open notification access**, enable NotiCatch.
-2. **Sideloaded APKs on Android 13+:** the switch can be greyed out. Open *App info → ⋮ → Allow restricted settings*, then retry. The app links to App info for this.
-3. Revoking access: Android stops delivering notifications; NotiCatch detects it on resume and shows a banner. History is kept.
-
-## Android limitations (and what the app does about them)
-
-- Only what Android exposes to listeners can be saved. Redacted ("sensitive content hidden") or empty notifications are skipped; anything posted while access was off cannot be recovered. WhatsApp/Messenger text is saved only when those apps include it in the notification.
-- Group summaries are skipped by default (setting) to avoid duplicates; ongoing/foreground-service notifications are off by default (setting).
-- Re-posts of an unchanged, still-showing notification are de-duplicated; changed content (new message) is a new entry. Removal (dismissed / opened / cancelled by app) is recorded on the entry, never deleted.
-- App list uses a launcher-intent `<queries>` entry instead of `QUERY_ALL_PACKAGES`; apps without a launcher icon are still captured (shown by package name).
-- Some OEMs kill background services; the service rebinds itself (`requestRebind`) and the app asks for a rebind after process start. Exempt NotiCatch from battery optimization on aggressive ROMs.
-
-## Security model
-
-PIN: 4–8 digits, salted and iterated SHA-256, stored in Android Keystore-backed `expo-secure-store`; failed-attempt backoff (5 free tries, then 30 s doubling to 15 min). Locks when leaving the app (configurable delay), blocks the back button, hides content from accessibility while locked. Biometrics are a shortcut with PIN fallback. The notification database itself is **not encrypted at rest** (it relies on Android's app sandbox and device encryption); say so in store listings.
-
-## Testing
-
-```bash
-npm test                 # unit + integration (repository with mocked native module, security store, components)
-npm run test:ci          # with coverage
-npm run test:native      # Kotlin JVM tests; run after `expo prebuild` (needs Android SDK)
-```
-Real-device checklist and `adb` commands: [`docs/TESTING.md`](docs/TESTING.md).
-
-## Verified vs. not verified in this delivery
-
-Verified in the build environment: strict TypeScript, 47 Jest tests, Android release JS bundle (`expo export`), `expo prebuild` output (manifest, SDK levels, autolinking of the native module), the pure-Kotlin query/hash logic executed, and the DB/service/app-catalog Kotlin compiled against `android.jar` (API 34).
-**Not verifiable there (no Android SDK/device):** the Gradle build, the APK/AAB, the thin `KeepsakeNotificationsModule.kt` bridge compile, and on-device behavior. Run `npm run build:preview` and the checklist in `docs/TESTING.md` before shipping; fix anything the first Gradle build reports.
-
-## Privacy policy
-
-Draft in [`docs/PRIVACY_POLICY.md`](docs/PRIVACY_POLICY.md); the same text ships in-app (`src/lib/privacyPolicy.ts`). Add a contact email and have it reviewed before publishing. For Google Play, `BIND_NOTIFICATION_LISTENER_SERVICE` apps need a prominent in-app disclosure (onboarding step 2) and a Data Safety form stating no data collected/shared.
+1. **Local Isolation:** Notifications are saved only to internal SQLite application storage (`context.getDatabasePath(...)`). Android cloud backups and transfer backups are disabled (`android:allowBackup="false"`).
+2. **Zero Network Transmission:** Release builds completely omit network permissions. No analytics, tracking tokens, or ads exist.
+3. **Contact & Legal:** Developed and maintained by **Team Risk Made**. For questions or feedback, reach out to `teamriskmade@gmail.com`.

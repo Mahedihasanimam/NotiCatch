@@ -15,4 +15,4 @@ _Last updated 2 November 2026 — draft; add your contact email and have it lega
 
 **Children.** Not directed at children under 13.
 
-**Changes and contact.** Updates ship inside the app. Contact: [your support email].
+**Changes and contact.** Updates ship inside the app. Contact: teamriskmade@gmail.com.

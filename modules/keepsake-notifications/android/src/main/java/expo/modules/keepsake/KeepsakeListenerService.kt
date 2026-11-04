@@ -134,9 +134,17 @@ class KeepsakeListenerService : NotificationListenerService() {
           val lastMsg = messages.lastOrNull()
           if (lastMsg is Bundle) {
             val msgText = lastMsg.getCharSequence("text")?.toString()?.trim()
+            val msgType = lastMsg.getString("type")
+            val hasUri = lastMsg.containsKey("uri")
+
             if (!msgText.isNullOrEmpty()) {
               text = msgText
+            } else if (msgType?.startsWith("image/") == true || hasUri) {
+              text = "📷 Photo"
+            } else if (msgType?.startsWith("audio/") == true) {
+              text = "🎤 Voice note"
             }
+
             if (title.isNullOrEmpty()) {
               val sender = lastMsg.getCharSequence("sender")?.toString()?.trim()
               if (!sender.isNullOrEmpty()) {
@@ -147,6 +155,17 @@ class KeepsakeListenerService : NotificationListenerService() {
         }
       } catch (e: Exception) {
         Log.w(TAG, "EXTRA_MESSAGES extraction failed", e)
+      }
+    }
+
+    // Check if notification carries a picture but text is still empty (common in WhatsApp, Telegram, etc.)
+    if (text.isNullOrEmpty()) {
+      val hasPic = x.containsKey(Notification.EXTRA_PICTURE) ||
+                   x.containsKey("android.picture") ||
+                   x.containsKey("android.pictureIcon") ||
+                   x.containsKey("android.largeIcon.big")
+      if (hasPic) {
+        text = "📷 Photo"
       }
     }
 
@@ -257,7 +276,7 @@ class KeepsakeListenerService : NotificationListenerService() {
             @Suppress("DEPRECATION")
             b.getParcelable("uri") as? Uri
           }
-          if (uri != null) {
+          if (uri != null || type != null) {
             if (type?.startsWith("audio/") == true) {
               val ext = when {
                 type.contains("ogg") -> "ogg"
@@ -267,10 +286,10 @@ class KeepsakeListenerService : NotificationListenerService() {
                 else -> "m4a"
               }
               val path = MediaSaver.saveAudioUri(this, uri, prefix, ext)
-              if (path != null) return ExtractedMedia(path, "audio")
-            } else if (type?.startsWith("image/") == true || type == null) {
+              return ExtractedMedia(path, "audio")
+            } else if (type?.startsWith("image/") == true || uri != null) {
               val path = MediaSaver.saveUri(this, uri, prefix)
-              if (path != null) return ExtractedMedia(path, "image")
+              return ExtractedMedia(path, "image")
             }
           }
         }
@@ -304,6 +323,20 @@ class KeepsakeListenerService : NotificationListenerService() {
       Log.d(TAG, "EXTRA_PICTURE check failed", e)
     }
 
+    // 4. EXTRA_LARGE_ICON_BIG ("android.largeIcon.big") - BigPictureStyle expanded large icon
+    try {
+      val bigLarge = extras.get("android.largeIcon.big")
+      if (bigLarge is Bitmap && bigLarge.width > 24 && bigLarge.height > 24) {
+        val path = MediaSaver.saveBitmap(this, bigLarge, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      } else if (bigLarge is Icon) {
+        val path = MediaSaver.saveIcon(this, bigLarge, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "EXTRA_LARGE_ICON_BIG check failed", e)
+    }
+
     // 4. Fallback: Determine mediaType from text or ticker when the sending app
     // only sends the push preview without embedding the media bytes in the notification payload.
     // NOTE: We NEVER use EXTRA_LARGE_ICON here because that is the sender's avatar!
@@ -321,7 +354,7 @@ class KeepsakeListenerService : NotificationListenerService() {
 
     val isImage = combined.contains("📷") || combined.contains("sent a photo") ||
                   combined.contains("photo") || combined.contains("image") ||
-                  combined.contains("ছবি পাঠিয়েছেন")
+                  combined.contains("ছবি")
     if (isImage) {
       return ExtractedMedia(null, "image")
     }
