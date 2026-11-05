@@ -33,6 +33,7 @@ import { useLiveQuery } from '@/hooks/useLiveQuery';
 import { cleanChatTitle } from '@/lib/chat';
 import type { NotificationRecord } from '@/lib/types';
 import { useDataVersion } from '@/store/dataVersion';
+import { useSettings } from '@/store/settings';
 import { radius, space } from '@/theme';
 
 function formatChatTime(timestamp: number): string {
@@ -296,6 +297,7 @@ export default function ChatThread() {
   }>();
 
   const bump = useDataVersion((s) => s.bump);
+  const isPro = useSettings((s) => s.isPro);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [showSearch, setShowSearch] = useState(false);

@@ -7,6 +7,7 @@ import { PremiumModal } from '@/components/PremiumModal';
 import { showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
+import { presentCustomerCenter } from '@/lib/purchases';
 import { useSettings } from '@/store/settings';
 
 export function MoreTab() {
@@ -30,7 +31,10 @@ export function MoreTab() {
   };
 
   const handleOpenHelp = () => {
-    const url = 'mailto:teamriskmade@gmail.com?subject=NotiCatch%20Support%20Request';
+    const subject = isPro
+      ? 'NotiCatch%20VIP%20Priority%20Support%20Request'
+      : 'NotiCatch%20Support%20Request';
+    const url = `mailto:teamriskmade@gmail.com?subject=${subject}`;
     Linking.openURL(url).catch(() => {
       showAppToast('Could not open email app');
     });
@@ -229,6 +233,52 @@ export function MoreTab() {
 
         {/* 2. Main Rounded Cards (Block notifications & Settings) */}
         <View style={{ gap: 12, marginBottom: 36 }}>
+          {/* Card 0: Manage Subscription (Customer Center for active VIPs only) */}
+          {isPro && (
+            <PressableBounce
+              scaleTo={0.98}
+              onPress={() => void presentCustomerCenter()}
+              style={{
+                backgroundColor: '#2E323F',
+                borderRadius: 16,
+                paddingVertical: 18,
+                paddingHorizontal: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderWidth: 1,
+                borderColor: 'rgba(45, 212, 191, 0.35)',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+                <Ionicons name="shield-checkmark" size={24} color="#2DD4BF" />
+                <View>
+                  <Text
+                    style={{
+                      fontFamily: 'Manrope_600SemiBold',
+                      fontSize: 16.5,
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    Manage VIP Subscription
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: 'Manrope_500Medium',
+                      fontSize: 12,
+                      color: '#2DD4BF',
+                      marginTop: 2,
+                    }}
+                  >
+                    Customer Center active
+                  </Text>
+                </View>
+              </View>
+
+              <Ionicons name="chevron-forward" size={20} color="#7C8494" />
+            </PressableBounce>
+          )}
+
           {/* Card 1: Block notifications */}
           <PressableBounce
             scaleTo={0.98}
@@ -326,22 +376,40 @@ export function MoreTab() {
             </Text>
           </PressableBounce>
 
-          {/* Help & Support */}
+          {/* Help & Support (VIP priority support for active subscribers) */}
           <PressableBounce
             scaleTo={0.97}
             onPress={handleOpenHelp}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Ionicons name="help-circle-outline" size={26} color="#FFFFFF" />
-            <Text
-              style={{
-                fontFamily: 'Manrope_600SemiBold',
-                fontSize: 16,
-                color: '#FFFFFF',
-              }}
-            >
-              Help & Support
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+              <Ionicons name="headset-outline" size={26} color={isPro ? '#2DD4BF' : '#FFFFFF'} />
+              <Text
+                style={{
+                  fontFamily: 'Manrope_600SemiBold',
+                  fontSize: 16,
+                  color: '#FFFFFF',
+                }}
+              >
+                {isPro ? 'VIP Customer Support' : 'Help & Support'}
+              </Text>
+            </View>
+            {isPro && (
+              <View
+                style={{
+                  backgroundColor: 'rgba(45, 212, 191, 0.15)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: 'rgba(45, 212, 191, 0.4)',
+                }}
+              >
+                <Text style={{ color: '#2DD4BF', fontSize: 11, fontFamily: 'Manrope_700Bold' }}>
+                  PRIORITY
+                </Text>
+              </View>
+            )}
           </PressableBounce>
 
           {/* Privacy Policy */}

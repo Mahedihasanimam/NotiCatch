@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.mehedi.noticatch.app',
-    versionCode: 1,
+    versionCode: 3,
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
     adaptiveIcon: {
       backgroundImage: './assets/android-icon-background.png',
@@ -46,7 +46,7 @@ const config: ExpoConfig = {
       {
         android: {
           compileSdkVersion: 37,
-          targetSdkVersion: 35,
+          targetSdkVersion: 36,
           buildToolsVersion: '37.0.0',
           minSdkVersion: 26,
           enableMinifyInReleaseBuilds: false,
@@ -60,7 +60,7 @@ const config: ExpoConfig = {
   extra: {
     variant: 'production',
     eas: {
-      projectId: process.env.EAS_PROJECT_ID ?? 'd5b16d25-12b1-458c-8ea9-c158abe444e9',
+      projectId: process.env.EAS_PROJECT_ID ?? '527e76ee-b657-41e4-9dad-28f9ae409c59',
     },
   },
 };

@@ -51,6 +51,7 @@ export function NotificationsTab() {
   const { top } = useSafeAreaInsets();
   const bump = useDataVersion((s) => s.bump);
   const granted = useAccess((s) => s.granted);
+  const isPro = useSettings((s) => s.isPro);
   const toggleExcluded = useSettings((s) => s.toggleExcluded);
 
   const [subTab, setSubTab] = useState<SubTab>('saved');
@@ -389,11 +390,11 @@ export function NotificationsTab() {
           </PressableBounce>
         </View>
 
-        {/* Right side: Gold Crown (VIP) + Search */}
+        {/* Right side: Crown (Teal when VIP, Gold when Unlocked) + Search */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <CrownIcon
             size={24}
-            color="#FFC107"
+            color={isPro ? '#2DD4BF' : '#FFC107'}
             onPress={() => setShowPremium(true)}
           />
 

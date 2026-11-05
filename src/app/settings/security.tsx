@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { showAppToast } from '@/components/CustomDialog';
 import { PinDots, PinPad } from '@/components/PinPad';
+import { PremiumModal } from '@/components/PremiumModal';
 import { Screen } from '@/components/Screen';
 import { Sheet } from '@/components/Sheet';
 import { Banner } from '@/components/states';
@@ -66,15 +67,29 @@ function PinFlow({ mode, onClose }: { mode: Mode; onClose: () => void }) {
 export default function Security() {
   const { colors } = useTheme();
   const s = useSettings();
+  const isPro = useSettings((x) => x.isPro);
   const hasPin = useSecurity((x) => x.hasPin);
   const bioAvailable = useSecurity((x) => x.biometricAvailable);
   const [flow, setFlow] = useState<Mode | null>(null);
+  const [showPremium, setShowPremium] = useState(false);
 
   const toggleBio = async (on: boolean) => {
+    if (!isPro) {
+      setShowPremium(true);
+      return;
+    }
     if (!on) { s.update({ biometricEnabled: false }); return; }
     const ok = await useSecurity.getState().checkBiometrics();
     if (!ok) { showAppToast('Set up a fingerprint or face unlock in Android settings first.', 'error'); return; }
     s.update({ biometricEnabled: true });
+  };
+
+  const handleSetPin = () => {
+    if (!isPro) {
+      setShowPremium(true);
+      return;
+    }
+    setFlow('set');
   };
 
   return (
@@ -86,11 +101,34 @@ export default function Security() {
       <Group title="App lock">
         {hasPin ? (
           <>
-            <Row icon="key-outline" title="Change PIN" chevron onPress={() => setFlow('change')} />
+            <Row icon="key-outline" title="Change PIN" chevron onPress={() => isPro ? setFlow('change') : setShowPremium(true)} />
             <Row icon="close-circle-outline" title="Turn off PIN lock" danger last onPress={() => setFlow('remove')} />
           </>
         ) : (
-          <Row icon="key-outline" title="Set a PIN" subtitle="Lock NotiCatch whenever you leave it" chevron last onPress={() => setFlow('set')} />
+          <Row
+            icon="key-outline"
+            title="Set a PIN"
+            subtitle={isPro ? "Lock NotiCatch whenever you leave it" : "VIP Feature • Lock NotiCatch whenever you leave it"}
+            chevron
+            last
+            onPress={handleSetPin}
+            right={
+              !isPro ? (
+                <View
+                  style={{
+                    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(251, 191, 36, 0.4)',
+                  }}
+                >
+                  <Text style={{ color: '#FBBF24', fontSize: 11, fontFamily: 'Manrope_700Bold' }}>VIP</Text>
+                </View>
+              ) : undefined
+            }
+          />
         )}
       </Group>
 
@@ -114,6 +152,8 @@ export default function Security() {
       <Sheet visible={flow !== null} title={flow === 'set' ? 'Set a PIN' : flow === 'change' ? 'Change PIN' : 'Turn off lock'} onClose={() => setFlow(null)} maxHeight="95%">
         {flow ? <PinFlow key={flow} mode={flow} onClose={() => setFlow(null)} /> : null}
       </Sheet>
+
+      <PremiumModal visible={showPremium} onClose={() => setShowPremium(false)} />
     </Screen>
   );
 }

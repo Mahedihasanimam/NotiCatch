@@ -1,10 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Modal, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { PurchasesPackage } from 'react-native-purchases';
 import { showAppToast } from './CustomDialog';
 import { PressableBounce } from './PressableBounce';
 import { Text } from './ui';
+import {
+  getLastOfferingsError,
+  getSubscriptionPackage,
+  presentCustomerCenter,
+  purchaseSubscription,
+  restoreSubscription,
+} from '@/lib/purchases';
 import { useSettings } from '@/store/settings';
 
 interface Props {
@@ -21,16 +29,74 @@ export function PremiumModal({ visible, onClose }: Props) {
   const isPro = useSettings((s) => s.isPro);
   const setPro = useSettings((s) => s.setPro);
   const [activating, setActivating] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [pkg, setPkg] = useState<PurchasesPackage | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const handleStartTrial = () => {
+  useEffect(() => {
+    if (!visible) return;
+    let isMounted = true;
+    void getSubscriptionPackage().then((fetched) => {
+      if (isMounted) {
+        if (fetched) {
+          setPkg(fetched);
+          setLoadError(null);
+        } else {
+          setLoadError(getLastOfferingsError());
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [visible]);
+
+  const handleStartTrial = async () => {
+    if (activating) return;
+    if (isPro) {
+      void presentCustomerCenter();
+      return;
+    }
     setActivating(true);
-    setPro(true);
-    showAppToast('🎉 3-Day Free Trial Activated! VIP features unlocked.');
-    setTimeout(() => {
+
+    try {
+      // Initiate Google Play / RevenueCat purchase flow
+      const res = await purchaseSubscription(pkg);
+      if (res.success) {
+        setPro(true);
+        showAppToast('🎉 VIP Pass Activated! All features unlocked.', 'success');
+        setTimeout(onClose, 600);
+      } else if (res.cancelled) {
+        // User closed the Google Play payment sheet
+      } else {
+        showAppToast(res.error || 'Purchase could not be completed.', 'error');
+      }
+    } catch (e: any) {
+      showAppToast(e?.message || 'An error occurred during purchase.', 'error');
+    } finally {
       setActivating(false);
-      onClose();
-    }, 800);
+    }
   };
+
+  const handleRestore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const res = await restoreSubscription();
+      showAppToast(res.message, res.restored ? 'success' : 'info');
+      if (res.restored) {
+        setTimeout(onClose, 600);
+      }
+    } catch {
+      showAppToast('Could not restore purchases at this time.', 'error');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const priceText = pkg?.product?.priceString
+    ? `${pkg.product.priceString}/month after FREE 3-day trial`
+    : '3-day FREE trial, then monthly auto-renew';
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -192,7 +258,7 @@ export function PremiumModal({ visible, onClose }: Props) {
               </View>
             </View>
 
-            {/* Row 2: Manage Notifications */}
+            {/* Row 2: Recover Deleted Messages */}
             <View
               style={{
                 flexDirection: 'row',
@@ -201,9 +267,9 @@ export function PremiumModal({ visible, onClose }: Props) {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <Ionicons name="notifications-outline" size={22} color={BRAND_TEAL_VIBRANT} />
+                <Ionicons name="trash-bin-outline" size={22} color={BRAND_TEAL_VIBRANT} />
                 <Text style={{ fontSize: 15, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
-                  Manage Notifications
+                  Recover Deleted Messages
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 50, marginRight: 12 }}>
@@ -212,7 +278,7 @@ export function PremiumModal({ visible, onClose }: Props) {
               </View>
             </View>
 
-            {/* Row 3: Add to Groups */}
+            {/* Row 3: Photos & Voice Notes */}
             <View
               style={{
                 flexDirection: 'row',
@@ -221,9 +287,9 @@ export function PremiumModal({ visible, onClose }: Props) {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <Ionicons name="scan-outline" size={22} color={BRAND_TEAL_VIBRANT} />
+                <Ionicons name="images-outline" size={22} color={BRAND_TEAL_VIBRANT} />
                 <Text style={{ fontSize: 15, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
-                  Add to Groups
+                  Photos & Voice Notes
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 50, marginRight: 12 }}>
@@ -252,7 +318,7 @@ export function PremiumModal({ visible, onClose }: Props) {
               </View>
             </View>
 
-            {/* Row 5: Remove Ads */}
+            {/* Row 5: PIN & Biometric Lock */}
             <View
               style={{
                 flexDirection: 'row',
@@ -261,9 +327,9 @@ export function PremiumModal({ visible, onClose }: Props) {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <Ionicons name="ban-outline" size={22} color={BRAND_TEAL_VIBRANT} />
+                <Ionicons name="finger-print-outline" size={22} color={BRAND_TEAL_VIBRANT} />
                 <Text style={{ fontSize: 15, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
-                  Remove Ads
+                  PIN & Biometric Lock
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 52, marginRight: 14 }}>
@@ -295,11 +361,44 @@ export function PremiumModal({ visible, onClose }: Props) {
               textAlign: 'center',
             }}
           >
-            BDT 1,300.00/week after FREE 3-day trial
+            {priceText}
           </Text>
+
+          {/* Validation Notice if Google Play is not signed in or unavailable on this device */}
+          {loadError ? (
+            <View
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                borderColor: 'rgba(239, 68, 68, 0.35)',
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                marginBottom: 12,
+                width: '100%',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+              <Text
+                style={{
+                  color: '#FCA5A5',
+                  fontSize: 12,
+                  fontFamily: 'Manrope_500Medium',
+                  flex: 1,
+                  lineHeight: 17,
+                }}
+              >
+                {loadError}
+              </Text>
+            </View>
+          ) : null}
 
           <PressableBounce
             onPress={handleStartTrial}
+            disabled={activating}
             scaleTo={0.96}
             style={{
               width: '100%',
@@ -315,21 +414,29 @@ export function PremiumModal({ visible, onClose }: Props) {
               shadowOpacity: 0.35,
               shadowRadius: 8,
               elevation: 5,
+              opacity: activating ? 0.9 : 1,
             }}
           >
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              style={{
-                color: '#FFFFFF',
-                fontFamily: 'Manrope_800ExtraBold',
-                fontSize: 15.5,
-                letterSpacing: 0.8,
-                textAlign: 'center',
-              }}
-            >
-              {activating ? 'ACTIVATING VIP...' : isPro ? 'VIP ACTIVE' : 'START FREE TRIAL'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              {activating && <ActivityIndicator color="#FFFFFF" size="small" />}
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={{
+                  color: '#FFFFFF',
+                  fontFamily: 'Manrope_800ExtraBold',
+                  fontSize: 15.5,
+                  letterSpacing: 0.8,
+                  textAlign: 'center',
+                }}
+              >
+                {activating
+                  ? 'CONNECTING GOOGLE PLAY...'
+                  : isPro
+                  ? 'MANAGE VIP SUBSCRIPTION'
+                  : 'START FREE TRIAL'}
+              </Text>
+            </View>
           </PressableBounce>
 
           <Text
@@ -346,6 +453,26 @@ export function PremiumModal({ visible, onClose }: Props) {
             Subscription is billed after the trial ends and will auto-renew. Cancel
             subscription anytime before trial ends to avoid charges.
           </Text>
+
+          {/* Restore Purchases Link (Google Play Requirement) */}
+          <TouchableOpacity
+            onPress={handleRestore}
+            hitSlop={8}
+            disabled={restoring}
+            style={{ marginTop: 8, paddingVertical: 4 }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: 'Manrope_600SemiBold',
+                color: BRAND_TEAL_VIBRANT,
+                textAlign: 'center',
+                textDecorationLine: 'underline',
+              }}
+            >
+              {restoring ? 'Restoring purchases...' : 'Restore Purchases'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>

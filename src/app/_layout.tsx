@@ -11,6 +11,7 @@ import { Text } from '@/components/ui';
 import { clearDemoData } from '@/data/demoData';
 import { requestNotificationPermission } from '@/data/repository';
 import { startAppStateHandling, startNativeSync, startSecureScreenSync, runRetentionCleanup } from '@/data/lifecycle';
+import { initPurchases } from '@/lib/purchases';
 import { useAccess } from '@/store/access';
 import { startChangeBridge } from '@/store/dataVersion';
 import { useSecurity } from '@/store/security';
@@ -28,6 +29,7 @@ function Shell() {
   const { top, bottom } = useSafeAreaInsets();
 
   useEffect(() => {
+    initPurchases();
     void useSecurity.getState().init();
     void useAccess.getState().refresh();
     void runRetentionCleanup();

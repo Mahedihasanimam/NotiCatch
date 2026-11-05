@@ -16,6 +16,7 @@ import { isChatMessage } from '@/lib/chat';
 import type { Conversation } from '@/lib/types';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
+import { useSettings } from '@/store/settings';
 import { space } from '@/theme';
 
 function formatChatListTime(timestamp: number): string {
@@ -32,6 +33,7 @@ export function ChatsTab() {
   const { top } = useSafeAreaInsets();
   const bump = useDataVersion((s) => s.bump);
   const granted = useAccess((s) => s.granted);
+  const isPro = useSettings((s) => s.isPro);
   const [refreshing, setRefreshing] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
 
@@ -130,7 +132,7 @@ export function ChatsTab() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <CrownIcon
             size={24}
-            color="#FFC107"
+            color={isPro ? '#2DD4BF' : '#FFC107'}
             onPress={() => setShowPremium(true)}
           />
 
