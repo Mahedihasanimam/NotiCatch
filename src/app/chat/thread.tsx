@@ -458,6 +458,16 @@ export default function ChatThread() {
     return deduplicated;
   }, [rawMessages, searchQuery]);
 
+  const threadAvatarUri = useMemo(() => {
+    const withMedia = messages?.find(
+      (m) => m.mediaPath && (m.mediaType === 'image' || !m.mediaType)
+    );
+    if (!withMedia?.mediaPath) return undefined;
+    return withMedia.mediaPath.startsWith('file://')
+      ? withMedia.mediaPath
+      : `file://${withMedia.mediaPath}`;
+  }, [messages]);
+
   const handleSend = async () => {
     if (!inputText.trim()) return;
     if (!promptNotificationPermissionIfNeeded()) return;
@@ -522,8 +532,9 @@ export default function ChatThread() {
             name={title || appName || 'User'}
             packageName={packageName}
             appName={appName}
-            size={34}
-            showAppBadge={false}
+            imageUri={threadAvatarUri}
+            size={36}
+            showAppBadge={true}
           />
 
           {isGroup ? (
@@ -670,6 +681,13 @@ export default function ChatThread() {
                           name={sender}
                           packageName={packageName}
                           appName={appName}
+                          imageUri={
+                            item.mediaPath && item.mediaType === 'image'
+                              ? item.mediaPath.startsWith('file://')
+                                ? item.mediaPath
+                                : `file://${item.mediaPath}`
+                              : threadAvatarUri
+                          }
                           size={32}
                           showAppBadge={false}
                         />

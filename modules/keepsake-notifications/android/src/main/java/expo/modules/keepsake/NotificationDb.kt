@@ -312,7 +312,17 @@ class NotificationDb private constructor(context: Context) :
            n.posted_at AS last_posted_at,
            g.total_count,
            g.deleted_count,
-           n.media_path AS sample_media,
+           CASE 
+             WHEN n.media_type = 'image' AND n.media_path IS NOT NULL THEN n.media_path
+             ELSE (
+               SELECT media_path FROM notifications 
+               WHERE package_name = n.package_name 
+                 AND COALESCE(title, app_name) = COALESCE(n.title, n.app_name) 
+                 AND media_path IS NOT NULL 
+                 AND (media_type = 'image' OR media_type IS NULL)
+               ORDER BY id DESC LIMIT 1
+             )
+           END AS sample_media,
            n.sbn_key,
            g.unread_count
     FROM notifications n

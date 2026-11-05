@@ -277,8 +277,15 @@ export default function AppChatsScreen() {
                 name={item.title}
                 packageName={item.packageName}
                 appName={item.appName}
+                imageUri={
+                  item.mediaPath
+                    ? item.mediaPath.startsWith('file://')
+                      ? item.mediaPath
+                      : `file://${item.mediaPath}`
+                    : undefined
+                }
                 size={48}
-                showAppBadge={false}
+                showAppBadge={true}
               />
 
               <View style={{ flex: 1 }}>

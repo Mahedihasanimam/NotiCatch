@@ -5,6 +5,7 @@ import { cleanChatTitle } from '@/lib/chat';
 import { formatNotisaveRelative } from '@/lib/time';
 import type { NotificationRecord } from '@/lib/types';
 import { AppIcon } from './AppIcon';
+import { Avatar } from './Avatar';
 import { PressableBounce } from './PressableBounce';
 import { Text } from './ui';
 
@@ -179,97 +180,123 @@ function AppNotificationCardBase({
               title.includes('Personal') ||
               title.includes('Group') ||
               Boolean(item.groupKey));
+          const entryImage =
+            item.mediaPath && (item.mediaType === 'image' || !item.mediaType)
+              ? item.mediaPath
+              : null;
 
           return (
             <Pressable
               key={`${entry.title}-${index}`}
               onPress={() => (onPressItem ? onPressItem(item) : onPress(group))}
-              style={({ pressed }) => [{ gap: 2, opacity: pressed ? 0.75 : 1 }]}
+              style={({ pressed }) => [{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                opacity: pressed ? 0.75 : 1,
+                paddingVertical: 4,
+              }]}
             >
-              {/* Line 1: Unread Dot + WhatsApp Group badge + Title + Message Count badge */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  {/* Red dot for unread notification item */}
-                  {isUnread ? (
+              <Avatar
+                name={title}
+                packageName={group.packageName}
+                appName={group.appName}
+                imageUri={
+                  entryImage
+                    ? entryImage.startsWith('file://')
+                      ? entryImage
+                      : `file://${entryImage}`
+                    : undefined
+                }
+                size={38}
+                showAppBadge={true}
+              />
+
+              <View style={{ flex: 1, gap: 2 }}>
+                {/* Line 1: Unread Dot + WhatsApp Group badge + Title + Message Count badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    {/* Red dot for unread notification item */}
+                    {isUnread ? (
+                      <View
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: 3.5,
+                          backgroundColor: '#EF4444',
+                        }}
+                      />
+                    ) : null}
+
+                    {isGroup ? (
+                      <View
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 2,
+                          backgroundColor: '#9C27B0',
+                        }}
+                      />
+                    ) : null}
+
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 14.5,
+                        fontFamily: isUnread ? 'Manrope_700Bold' : 'Manrope_600SemiBold',
+                        color: isUnread ? '#FFFFFF' : '#9CA3AF',
+                        flex: 1,
+                      }}
+                    >
+                      {title}
+                    </Text>
+                  </View>
+
+                  {/* Count badge showing total messages in this conversation if > 1 */}
+                  {entry.count > 1 ? (
                     <View
                       style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 3.5,
-                        backgroundColor: '#EF4444',
+                        minWidth: 19,
+                        height: 19,
+                        borderRadius: 9.5,
+                        backgroundColor: 'rgba(13, 148, 136, 0.15)',
+                        borderWidth: 1,
+                        borderColor: '#0D9488',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingHorizontal: 4,
                       }}
-                    />
+                    >
+                      <Text
+                        style={{
+                          color: '#0D9488',
+                          fontFamily: 'Manrope_700Bold',
+                          fontSize: 10.5,
+                        }}
+                      >
+                        {entry.count}
+                      </Text>
+                    </View>
                   ) : null}
+                </View>
 
-                  {isGroup ? (
-                    <View
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: 2,
-                        backgroundColor: '#9C27B0',
-                      }}
-                    />
-                  ) : null}
-
+                {/* Line 2: Latest message preview */}
+                {body ? (
                   <Text
                     numberOfLines={1}
                     style={{
-                      fontSize: 14.5,
-                      fontFamily: isUnread ? 'Manrope_700Bold' : 'Manrope_600SemiBold',
-                      color: isUnread ? '#FFFFFF' : '#9CA3AF',
-                      flex: 1,
+                      fontSize: 13.5,
+                      color: entry.isDeleted
+                        ? '#EF4444'
+                        : isUnread
+                          ? '#D1D5DB'
+                          : '#6B7280',
                     }}
                   >
-                    {title}
+                    {entry.isDeleted ? `🗑️ [Deleted by sender] ${body}` : body}
                   </Text>
-                </View>
-
-                {/* Count badge showing total messages in this conversation if > 1 */}
-                {entry.count > 1 ? (
-                  <View
-                    style={{
-                      minWidth: 19,
-                      height: 19,
-                      borderRadius: 9.5,
-                      backgroundColor: 'rgba(13, 148, 136, 0.15)',
-                      borderWidth: 1,
-                      borderColor: '#0D9488',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingHorizontal: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: '#0D9488',
-                        fontFamily: 'Manrope_700Bold',
-                        fontSize: 10.5,
-                      }}
-                    >
-                      {entry.count}
-                    </Text>
-                  </View>
                 ) : null}
               </View>
-
-              {/* Line 2: Latest message preview */}
-              {body ? (
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    fontSize: 13.5,
-                    color: entry.isDeleted
-                      ? '#EF4444'
-                      : isUnread
-                      ? '#D1D5DB'
-                      : '#6B7280',
-                    paddingLeft: isUnread ? 13 : isGroup ? 18 : 0,
-                  }}
-                >
-                  {entry.isDeleted ? `🗑️ [Deleted by sender] ${body}` : body}
-                </Text>
-              ) : null}
             </Pressable>
           );
         })}

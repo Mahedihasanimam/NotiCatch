@@ -539,6 +539,13 @@ export default function GlobalSearchScreen() {
                     name={conv.title}
                     packageName={conv.packageName}
                     appName={conv.appName}
+                    imageUri={
+                      conv.mediaPath
+                        ? conv.mediaPath.startsWith('file://')
+                          ? conv.mediaPath
+                          : `file://${conv.mediaPath}`
+                        : undefined
+                    }
                     size={20}
                     showAppBadge={false}
                   />
@@ -687,6 +694,13 @@ export default function GlobalSearchScreen() {
                         name={item.title}
                         packageName={item.packageName}
                         appName={item.appName}
+                        imageUri={
+                          item.mediaPath
+                            ? item.mediaPath.startsWith('file://')
+                              ? item.mediaPath
+                              : `file://${item.mediaPath}`
+                            : undefined
+                        }
                         size={44}
                         showAppBadge
                       />

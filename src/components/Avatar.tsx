@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 import { AppIcon, getAppBrand } from './AppIcon';
 import { Text } from './ui';
@@ -34,13 +34,23 @@ export function Avatar({
   const badgeSize = Math.max(16, Math.round(size * 0.38));
   const brand = getAppBrand(packageName, appName || name);
 
-  const hasValidPhoto = Boolean(imageUri && !imageFailed);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUri]);
+
+  const normalizedUri = imageUri
+    ? imageUri.startsWith('file://') || imageUri.startsWith('content://') || imageUri.startsWith('http')
+      ? imageUri
+      : `file://${imageUri}`
+    : null;
+
+  const hasValidPhoto = Boolean(normalizedUri && !imageFailed);
 
   return (
     <View style={{ width: size, height: size, position: 'relative' }}>
       {hasValidPhoto ? (
         <Image
-          source={{ uri: imageUri! }}
+          source={{ uri: normalizedUri! }}
           onError={() => setImageFailed(true)}
           style={{
             width: size,
@@ -82,7 +92,7 @@ export function Avatar({
         </View>
       )}
 
-      {/* Corner app badge */}
+      {/* Corner app badge (source logo like Facebook, WhatsApp, Insta, Google) */}
       {showAppBadge && packageName ? (
         <View
           style={{
