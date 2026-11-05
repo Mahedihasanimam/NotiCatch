@@ -433,8 +433,8 @@ export function PremiumModal({ visible, onClose }: Props) {
                 {activating
                   ? 'CONNECTING GOOGLE PLAY...'
                   : isPro
-                  ? 'MANAGE VIP SUBSCRIPTION'
-                  : 'START FREE TRIAL'}
+                    ? 'MANAGE VIP SUBSCRIPTION'
+                    : 'START FREE TRIAL'}
               </Text>
             </View>
           </PressableBounce>
