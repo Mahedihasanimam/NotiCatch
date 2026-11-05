@@ -256,8 +256,15 @@ export default function NotificationDetail() {
               name={n.title ?? n.appName}
               packageName={n.packageName}
               appName={n.appName}
+              imageUri={
+                n.mediaPath && n.mediaType === 'image'
+                  ? n.mediaPath.startsWith('file://')
+                    ? n.mediaPath
+                    : `file://${n.mediaPath}`
+                  : undefined
+              }
               size={50}
-              showAppBadge={false}
+              showAppBadge={true}
             />
 
             <View style={{ flex: 1 }}>

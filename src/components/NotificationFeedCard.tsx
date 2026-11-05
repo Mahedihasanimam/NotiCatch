@@ -122,11 +122,19 @@ function NotificationFeedCardBase({
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <AppIcon
+          <Avatar
+            name={item.title ?? item.appName}
             packageName={item.packageName}
-            name={item.appName}
-            size={38}
-            shape="squircle"
+            appName={item.appName}
+            imageUri={
+              item.mediaPath && item.mediaType === 'image'
+                ? item.mediaPath.startsWith('file://')
+                  ? item.mediaPath
+                  : `file://${item.mediaPath}`
+                : undefined
+            }
+            size={40}
+            showAppBadge={true}
           />
           <View>
             <Text

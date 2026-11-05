@@ -5,6 +5,7 @@ import { formatRelative } from '@/lib/time';
 import type { NotificationRecord } from '@/lib/types';
 import { radius, space, useTheme } from '@/theme';
 import { AppBadge, AppIcon } from './AppIcon';
+import { Avatar } from './Avatar';
 import { Text } from './ui';
 
 export function removalLabel(reason: number | null): string {
@@ -48,7 +49,20 @@ function NotificationCardBase({ item, now, selected, selecting, showApp = true, 
       }}
     >
       <View>
-        <AppIcon packageName={item.packageName} name={item.appName} />
+        <Avatar
+          name={item.title ?? item.appName}
+          packageName={item.packageName}
+          appName={item.appName}
+          imageUri={
+            item.mediaPath && item.mediaType === 'image'
+              ? item.mediaPath.startsWith('file://')
+                ? item.mediaPath
+                : `file://${item.mediaPath}`
+              : undefined
+          }
+          size={42}
+          showAppBadge={true}
+        />
         {selecting ? (
           <View style={{ position: 'absolute', right: -6, bottom: -6, backgroundColor: selected ? colors.primary : colors.surface, borderRadius: 11, borderWidth: 2, borderColor: selected ? colors.primary : colors.textMuted }}>
             <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={selected ? colors.onPrimary : colors.textMuted} />
