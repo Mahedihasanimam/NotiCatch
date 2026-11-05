@@ -209,7 +209,7 @@ function PhotoPlaceholderCard({ caption, appName }: PhotoPlaceholderCardProps) {
   const displayCaption =
     caption && !caption.includes('📷') && !caption.toLowerCase().includes('sent a photo')
       ? caption
-      : 'Sent a photo to you';
+      : 'Photo message';
 
   return (
     <View
@@ -223,7 +223,7 @@ function PhotoPlaceholderCard({ caption, appName }: PhotoPlaceholderCardProps) {
         borderColor: 'rgba(0, 229, 255, 0.25)',
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View
           style={{
             width: 38,
@@ -236,7 +236,7 @@ function PhotoPlaceholderCard({ caption, appName }: PhotoPlaceholderCardProps) {
             justifyContent: 'center',
           }}
         >
-          <Ionicons name="camera" size={20} color="#00E5FF" />
+          <Ionicons name="image" size={20} color="#00E5FF" />
         </View>
         <View style={{ flex: 1 }}>
           <Text
@@ -259,29 +259,6 @@ function PhotoPlaceholderCard({ caption, appName }: PhotoPlaceholderCardProps) {
             {displayCaption}
           </Text>
         </View>
-      </View>
-
-      {/* Tap hint to open real app */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 5,
-          paddingTop: 6,
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(255, 255, 255, 0.06)',
-        }}
-      >
-        <Ionicons name="open-outline" size={13} color="#2DD4BF" />
-        <Text
-          style={{
-            fontSize: 11.5,
-            fontFamily: 'Manrope_600SemiBold',
-            color: '#2DD4BF',
-          }}
-        >
-          Tap to view photo in {appName || 'App'}
-        </Text>
       </View>
     </View>
   );

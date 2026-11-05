@@ -270,11 +270,16 @@ class KeepsakeListenerService : NotificationListenerService() {
         for (i in msgs.indices.reversed()) {
           val b = msgs[i] as? Bundle ?: continue
           val type = b.getString("type")
-          val uri = if (Build.VERSION.SDK_INT >= 33) {
-            b.getParcelable("uri", Uri::class.java)
-          } else {
-            @Suppress("DEPRECATION")
-            b.getParcelable("uri") as? Uri
+          val rawUri = b.get("uri")
+          val uri: Uri? = when (rawUri) {
+            is Uri -> rawUri
+            is String -> try { Uri.parse(rawUri) } catch (_: Exception) { null }
+            else -> if (Build.VERSION.SDK_INT >= 33) {
+              b.getParcelable("uri", Uri::class.java)
+            } else {
+              @Suppress("DEPRECATION")
+              b.getParcelable("uri") as? Uri
+            }
           }
           if (uri != null || type != null) {
             if (type?.startsWith("audio/") == true) {
@@ -309,7 +314,7 @@ class KeepsakeListenerService : NotificationListenerService() {
       Log.d(TAG, "EXTRA_PICTURE_ICON check failed", e)
     }
 
-    // 3. EXTRA_PICTURE ("android.picture") - can be Bitmap or Icon
+    // 3. EXTRA_PICTURE ("android.picture") - can be Bitmap or Icon or Uri
     try {
       val picObj = extras.get(Notification.EXTRA_PICTURE)
       if (picObj is Bitmap && picObj.width > 24 && picObj.height > 24) {
@@ -317,6 +322,12 @@ class KeepsakeListenerService : NotificationListenerService() {
         if (path != null) return ExtractedMedia(path, "image")
       } else if (picObj is Icon) {
         val path = MediaSaver.saveIcon(this, picObj, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      } else if (picObj is Uri) {
+        val path = MediaSaver.saveUri(this, picObj, prefix)
+        if (path != null) return ExtractedMedia(path, "image")
+      } else if (picObj is String && (picObj.startsWith("content://") || picObj.startsWith("file://"))) {
+        val path = MediaSaver.saveUri(this, Uri.parse(picObj), prefix)
         if (path != null) return ExtractedMedia(path, "image")
       }
     } catch (e: Exception) {
@@ -337,9 +348,8 @@ class KeepsakeListenerService : NotificationListenerService() {
       Log.d(TAG, "EXTRA_LARGE_ICON_BIG check failed", e)
     }
 
-    // 4. Fallback: Determine mediaType from text or ticker when the sending app
+    // 5. Fallback: Determine mediaType from text or ticker when the sending app
     // only sends the push preview without embedding the media bytes in the notification payload.
-    // NOTE: We NEVER use EXTRA_LARGE_ICON here because that is the sender's avatar!
     val textStr = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
     val bigTextStr = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
     val tickerStr = n.tickerText?.toString() ?: ""
@@ -356,6 +366,19 @@ class KeepsakeListenerService : NotificationListenerService() {
                   combined.contains("photo") || combined.contains("image") ||
                   combined.contains("ছবি")
     if (isImage) {
+      // If a photo was received and no BigPicture was found, try EXTRA_LARGE_ICON as photo thumbnail
+      try {
+        val largeIconObj = extras.get(Notification.EXTRA_LARGE_ICON)
+        if (largeIconObj is Bitmap && largeIconObj.width > 48 && largeIconObj.height > 48) {
+          val path = MediaSaver.saveBitmap(this, largeIconObj, prefix)
+          if (path != null) return ExtractedMedia(path, "image")
+        } else if (largeIconObj is Icon) {
+          val path = MediaSaver.saveIcon(this, largeIconObj, prefix)
+          if (path != null) return ExtractedMedia(path, "image")
+        }
+      } catch (e: Exception) {
+        Log.d(TAG, "EXTRA_LARGE_ICON photo check failed", e)
+      }
       return ExtractedMedia(null, "image")
     }
 

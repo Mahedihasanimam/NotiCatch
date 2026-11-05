@@ -45,13 +45,32 @@ class NotificationDb private constructor(context: Context) :
         "SELECT 1 FROM notifications WHERE sbn_key = ? AND content_hash = ? LIMIT 1",
         arrayOf(r.sbnKey, r.contentHash),
       ).use { it.moveToFirst() }
-      if (hashDup) return false
+      if (hashDup) {
+        // If this notification was previously saved without media (e.g. before photo download finished),
+        // but this incoming update now carries the saved media file, update the record!
+        if (r.mediaPath != null) {
+          val updated = db.update(
+            "notifications",
+            ContentValues().apply {
+              put("media_path", r.mediaPath)
+              put("media_type", r.mediaType)
+            },
+            "sbn_key = ? AND media_path IS NULL",
+            arrayOf(r.sbnKey)
+          )
+          if (updated > 0) {
+            db.setTransactionSuccessful()
+            return true
+          }
+        }
+        return false
+      }
 
       // 2. Prevent rapid duplicate insertions of the same text/message from the same sender within 2 minutes
       if (!r.text.isNullOrEmpty()) {
-        val recentDup = db.rawQuery(
+        val recentDupCursor = db.rawQuery(
           """
-          SELECT 1 FROM notifications 
+          SELECT id, media_path FROM notifications 
           WHERE package_name = ? 
             AND COALESCE(title, '') = COALESCE(?, '') 
             AND COALESCE(text, '') = COALESCE(?, '')
@@ -60,8 +79,25 @@ class NotificationDb private constructor(context: Context) :
           LIMIT 1
           """,
           arrayOf(r.packageName, r.title ?: "", r.text ?: "", r.postedAt.toString(), r.postedAt.toString()),
-        ).use { it.moveToFirst() }
-        if (recentDup) return false
+        )
+        val hasRecentDup = recentDupCursor.use { c ->
+          if (c.moveToFirst()) {
+            val existingMedia = if (c.isNull(1)) null else c.getString(1)
+            val existingId = c.getLong(0)
+            if (existingMedia == null && r.mediaPath != null) {
+              val cv = ContentValues().apply {
+                put("media_path", r.mediaPath)
+                put("media_type", r.mediaType)
+              }
+              db.update("notifications", cv, "id = ?", arrayOf(existingId.toString()))
+            }
+            true
+          } else false
+        }
+        if (hasRecentDup) {
+          db.setTransactionSuccessful()
+          return true
+        }
       }
 
       val v = ContentValues().apply {
