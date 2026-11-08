@@ -695,11 +695,15 @@ export default function GlobalSearchScreen() {
                         packageName={item.packageName}
                         appName={item.appName}
                         imageUri={
-                          item.mediaPath
-                            ? item.mediaPath.startsWith('file://')
-                              ? item.mediaPath
-                              : `file://${item.mediaPath}`
-                            : undefined
+                          item.avatarPath
+                            ? item.avatarPath.startsWith('file://')
+                              ? item.avatarPath
+                              : `file://${item.avatarPath}`
+                            : item.mediaPath
+                              ? item.mediaPath.startsWith('file://')
+                                ? item.mediaPath
+                                : `file://${item.mediaPath}`
+                              : undefined
                         }
                         size={44}
                         showAppBadge

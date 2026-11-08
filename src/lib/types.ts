@@ -21,6 +21,7 @@ export interface NotificationRecord {
   deletedAt: number | null;
   mediaPath: string | null;
   mediaType: string | null;
+  avatarPath?: string | null;
 }
 
 /** A record as stored in a backup file (no local row id). */
@@ -59,6 +60,7 @@ export interface Conversation {
   count: number;
   deletedCount: number;
   mediaPath: string | null;
+  avatarPath?: string | null;
   sbnKey: string | null;
   unreadCount?: number;
 }

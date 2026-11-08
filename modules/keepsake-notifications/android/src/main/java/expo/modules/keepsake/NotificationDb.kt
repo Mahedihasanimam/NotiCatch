@@ -46,10 +46,11 @@ class NotificationDb private constructor(context: Context) :
         arrayOf(r.sbnKey, r.contentHash),
       ).use { it.moveToFirst() }
       if (hashDup) {
-        // If this notification was previously saved without media (e.g. before photo download finished),
-        // but this incoming update now carries the saved media file, update the record!
+        // If this notification was previously saved without media or avatar,
+        // but this incoming update now carries the saved media file or avatar, update the record!
+        var updated = false
         if (r.mediaPath != null) {
-          val updated = db.update(
+          val count = db.update(
             "notifications",
             ContentValues().apply {
               put("media_path", r.mediaPath)
@@ -58,10 +59,22 @@ class NotificationDb private constructor(context: Context) :
             "sbn_key = ? AND media_path IS NULL",
             arrayOf(r.sbnKey)
           )
-          if (updated > 0) {
-            db.setTransactionSuccessful()
-            return true
-          }
+          if (count > 0) updated = true
+        }
+        if (r.avatarPath != null) {
+          val count = db.update(
+            "notifications",
+            ContentValues().apply {
+              put("avatar_path", r.avatarPath)
+            },
+            "sbn_key = ? AND avatar_path IS NULL",
+            arrayOf(r.sbnKey)
+          )
+          if (count > 0) updated = true
+        }
+        if (updated) {
+          db.setTransactionSuccessful()
+          return true
         }
         return false
       }
@@ -111,6 +124,7 @@ class NotificationDb private constructor(context: Context) :
         if (r.deletedAt != null) put("deleted_at", r.deletedAt)
         if (r.mediaPath != null) put("media_path", r.mediaPath)
         if (r.mediaType != null) put("media_type", r.mediaType)
+        if (r.avatarPath != null) put("avatar_path", r.avatarPath)
         put("created_at", System.currentTimeMillis())
       }
       db.insertOrThrow("notifications", null, v)
@@ -127,30 +141,44 @@ class NotificationDb private constructor(context: Context) :
     writableDatabase.update("notifications", v, "sbn_key = ? AND removed_at IS NULL", arrayOf(sbnKey))
   }
 
-  /** Marks the most recent message from contact/package as deleted. Returns the id if found. */
-  fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long): Long? = synchronized(lock) {
+  data class DeletedMessageInfo(
+    val id: Long,
+    val packageName: String,
+    val appName: String,
+    val senderName: String?,
+    val originalText: String?,
+    val mediaType: String?,
+  )
+
+  /** Marks the most recent message from contact/package as deleted. Returns DeletedMessageInfo if found. */
+  fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long): DeletedMessageInfo? = synchronized(lock) {
     val db = writableDatabase
     val cutoff = deletedAt - 86_400_000L // within 24 hours
     val cursor = if (title.isNullOrEmpty()) {
       db.rawQuery(
-        "SELECT id FROM notifications WHERE package_name = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
+        "SELECT id, title, text, big_text, app_name, media_type FROM notifications WHERE package_name = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
         arrayOf(packageName, cutoff.toString()),
       )
     } else {
       db.rawQuery(
-        "SELECT id FROM notifications WHERE package_name = ? AND title = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
+        "SELECT id, title, text, big_text, app_name, media_type FROM notifications WHERE package_name = ? AND title = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
         arrayOf(packageName, title, cutoff.toString()),
       )
     }
     cursor.use {
       if (it.moveToFirst()) {
         val id = it.getLong(0)
+        val senderTitle = if (it.isNull(1)) null else it.getString(1)
+        val origText = if (!it.isNull(2)) it.getString(2) else if (!it.isNull(3)) it.getString(3) else null
+        val appName = if (it.isNull(4)) packageName else it.getString(4)
+        val mediaType = if (it.isNull(5)) null else it.getString(5)
+
         val cv = ContentValues().apply {
           put("is_deleted", 1)
           put("deleted_at", deletedAt)
         }
         db.update("notifications", cv, "id = ?", arrayOf(id.toString()))
-        return id
+        return DeletedMessageInfo(id, packageName, appName, senderTitle ?: title, origText, mediaType)
       }
     }
     return null
@@ -312,17 +340,27 @@ class NotificationDb private constructor(context: Context) :
            n.posted_at AS last_posted_at,
            g.total_count,
            g.deleted_count,
-           CASE 
-             WHEN n.media_type = 'image' AND n.media_path IS NOT NULL THEN n.media_path
-             ELSE (
-               SELECT media_path FROM notifications 
+           COALESCE(
+             n.avatar_path,
+             (
+               SELECT avatar_path FROM notifications 
                WHERE package_name = n.package_name 
                  AND COALESCE(title, app_name) = COALESCE(n.title, n.app_name) 
-                 AND media_path IS NOT NULL 
-                 AND (media_type = 'image' OR media_type IS NULL)
+                 AND avatar_path IS NOT NULL 
                ORDER BY id DESC LIMIT 1
-             )
-           END AS sample_media,
+             ),
+             CASE 
+               WHEN n.media_type = 'image' AND n.media_path IS NOT NULL THEN n.media_path
+               ELSE (
+                 SELECT media_path FROM notifications 
+                 WHERE package_name = n.package_name 
+                   AND COALESCE(title, app_name) = COALESCE(n.title, n.app_name) 
+                   AND media_path IS NOT NULL 
+                   AND (media_type = 'image' OR media_type IS NULL)
+                 ORDER BY id DESC LIMIT 1
+               )
+             END
+           ) AS sample_media,
            n.sbn_key,
            g.unread_count
     FROM notifications n
@@ -397,6 +435,8 @@ class NotificationDb private constructor(context: Context) :
     fun s(n: String): Any = c.getColumnIndexOrThrow(n).let { if (c.isNull(it)) JSONObject.NULL else c.getString(it) }
     fun l(n: String): Any = c.getColumnIndexOrThrow(n).let { if (c.isNull(it)) JSONObject.NULL else c.getLong(it) }
     fun b(n: String): Boolean = c.getInt(c.getColumnIndexOrThrow(n)) == 1
+    val avatarIdx = c.getColumnIndex("avatar_path")
+    val avatarVal = if (avatarIdx != -1 && !c.isNull(avatarIdx)) c.getString(avatarIdx) else JSONObject.NULL
     return JSONObject()
       .put("id", c.getLong(c.getColumnIndexOrThrow("id")))
       .put("sbnKey", s("sbn_key")).put("packageName", s("package_name")).put("appName", s("app_name"))
@@ -407,6 +447,7 @@ class NotificationDb private constructor(context: Context) :
       .put("isFavorite", b("is_favorite")).put("isArchived", b("is_archived"))
       .put("isDeleted", b("is_deleted")).put("deletedAt", l("deleted_at"))
       .put("mediaPath", s("media_path")).put("mediaType", s("media_type"))
+      .put("avatarPath", avatarVal)
   }
 
   data class Captured(
@@ -418,11 +459,22 @@ class NotificationDb private constructor(context: Context) :
     val mediaType: String? = null,
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
+    val avatarPath: String? = null,
   )
 
   fun sanitizeBadAvatars() = synchronized(lock) {
     try {
       val db = writableDatabase
+      // Ensure avatar_path column exists if migration wasn't triggered
+      try {
+        db.execSQL("ALTER TABLE notifications ADD COLUMN avatar_path TEXT")
+      } catch (_: Exception) {}
+      // Migrate any avatar paths mistakenly saved in media_path to avatar_path
+      try {
+        db.execSQL(
+          "UPDATE notifications SET avatar_path = media_path, media_path = NULL, media_type = NULL WHERE media_path LIKE '%_avatar%'"
+        )
+      } catch (_: Exception) {}
       // Clear media_path where contact avatar from Messenger was mistakenly saved as image
       db.execSQL(
         "UPDATE notifications SET media_path = NULL, media_type = 'image' WHERE (media_path LIKE '%orca_%' OR package_name = 'com.facebook.orca') AND (text LIKE '%Sent a photo%' OR text LIKE '%📷%' OR big_text LIKE '%Sent a photo%' OR big_text LIKE '%📷%')"
@@ -440,7 +492,7 @@ class NotificationDb private constructor(context: Context) :
 
   companion object {
     const val DB_NAME = "keepsake_notifications.db"
-    const val DB_VERSION = 3
+    const val DB_VERSION = 4
 
     /** Version -> statements. Never edit a released entry; append a new version instead. */
     val MIGRATIONS: Map<Int, List<String>> = mapOf(
@@ -475,6 +527,10 @@ class NotificationDb private constructor(context: Context) :
         "ALTER TABLE notifications ADD COLUMN media_path TEXT",
         "ALTER TABLE notifications ADD COLUMN media_type TEXT",
         "CREATE INDEX idx_notif_deleted ON notifications(is_deleted, posted_at DESC)",
+      ),
+      4 to listOf(
+        "ALTER TABLE notifications ADD COLUMN avatar_path TEXT",
+        "UPDATE notifications SET avatar_path = media_path, media_path = NULL, media_type = NULL WHERE media_path LIKE '%_avatar%'",
       ),
     )
 

@@ -127,11 +127,15 @@ function NotificationFeedCardBase({
             packageName={item.packageName}
             appName={item.appName}
             imageUri={
-              item.mediaPath && item.mediaType === 'image'
-                ? item.mediaPath.startsWith('file://')
-                  ? item.mediaPath
-                  : `file://${item.mediaPath}`
-                : undefined
+              item.avatarPath
+                ? item.avatarPath.startsWith('file://')
+                  ? item.avatarPath
+                  : `file://${item.avatarPath}`
+                : item.mediaPath && (item.mediaPath.includes('_avatar') || item.mediaType === 'image')
+                  ? item.mediaPath.startsWith('file://')
+                    ? item.mediaPath
+                    : `file://${item.mediaPath}`
+                  : undefined
             }
             size={40}
             showAppBadge={true}

@@ -148,11 +148,26 @@ export default function NotificationDetail() {
     );
   };
 
-  const imageUri = n.mediaPath
-    ? n.mediaPath.startsWith('file://')
-      ? n.mediaPath
-      : `file://${n.mediaPath}`
-    : null;
+  const isAvatar = Boolean(
+    n.avatarPath ||
+    (n.mediaPath && (n.mediaPath.includes('_avatar') || n.mediaPath.includes('avatar')))
+  );
+
+  const attachedImageUri =
+    !isAvatar && n.mediaPath && n.mediaType === 'image'
+      ? n.mediaPath.startsWith('file://')
+        ? n.mediaPath
+        : `file://${n.mediaPath}`
+      : null;
+
+  const avatarUri =
+    n.avatarPath
+      ? n.avatarPath.startsWith('file://') ? n.avatarPath : `file://${n.avatarPath}`
+      : isAvatar && n.mediaPath
+        ? n.mediaPath.startsWith('file://') ? n.mediaPath : `file://${n.mediaPath}`
+        : (n.mediaPath && n.mediaType === 'image')
+          ? n.mediaPath.startsWith('file://') ? n.mediaPath : `file://${n.mediaPath}`
+          : undefined;
 
   return (
     <SafeAreaView
@@ -256,13 +271,7 @@ export default function NotificationDetail() {
               name={n.title ?? n.appName}
               packageName={n.packageName}
               appName={n.appName}
-              imageUri={
-                n.mediaPath && n.mediaType === 'image'
-                  ? n.mediaPath.startsWith('file://')
-                    ? n.mediaPath
-                    : `file://${n.mediaPath}`
-                  : undefined
-              }
+              imageUri={avatarUri}
               size={50}
               showAppBadge={true}
             />
@@ -381,11 +390,11 @@ export default function NotificationDetail() {
               </Text>
             ) : null}
 
-            {/* Attached Image if media path present */}
-            {imageUri ? (
+            {/* Attached Image if genuine media present */}
+            {attachedImageUri ? (
               <View style={{ marginTop: 16 }}>
                 <Image
-                  source={{ uri: imageUri }}
+                  source={{ uri: attachedImageUri }}
                   style={{
                     width: '100%',
                     height: 220,

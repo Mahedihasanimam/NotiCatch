@@ -15,6 +15,7 @@ class CapturePrefs(context: Context) {
   val keepFavorites: Boolean get() = prefs.getBoolean("keepFavorites", true)
   val keepArchived: Boolean get() = prefs.getBoolean("keepArchived", true)
   val statusBarNotification: Boolean get() = prefs.getBoolean("statusBarNotification", true)
+  val notifyOnDeleted: Boolean get() = prefs.getBoolean("notifyOnDeleted", true)
   val excluded: Set<String> get() = prefs.getStringSet("excluded", emptySet()) ?: emptySet()
 
   fun apply(json: String) {
@@ -30,6 +31,7 @@ class CapturePrefs(context: Context) {
       .putBoolean("keepFavorites", o.optBoolean("keepFavorites", true))
       .putBoolean("keepArchived", o.optBoolean("keepArchived", true))
       .putBoolean("statusBarNotification", o.optBoolean("statusBarNotification", true))
+      .putBoolean("notifyOnDeleted", o.optBoolean("notifyOnDeleted", true))
       .putStringSet("excluded", excludedSet)
       .apply()
   }

@@ -14,6 +14,7 @@ export interface CaptureConfig {
   keepArchived: boolean;
   excludedPackages: string[];
   statusBarNotification: boolean;
+  notifyOnDeleted?: boolean;
 }
 
 export type ChangeType = 'posted' | 'removed' | 'updated' | 'cleanup' | 'connected' | 'disconnected';

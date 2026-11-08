@@ -181,9 +181,10 @@ function AppNotificationCardBase({
               title.includes('Group') ||
               Boolean(item.groupKey));
           const entryImage =
-            item.mediaPath && (item.mediaType === 'image' || !item.mediaType)
+            item.avatarPath ??
+            (item.mediaPath && (item.mediaPath.includes('_avatar') || item.mediaType === 'image' || !item.mediaType)
               ? item.mediaPath
-              : null;
+              : null);
 
           return (
             <Pressable

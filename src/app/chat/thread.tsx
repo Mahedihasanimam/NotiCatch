@@ -84,8 +84,30 @@ function isVoiceMessage(item: NotificationRecord, bodyText: string) {
   );
 }
 
+function isPlaceholderOnly(text: string): boolean {
+  if (!text) return true;
+  const t = text.trim().toLowerCase();
+  return (
+    t === 'photo' ||
+    t === '📷 photo' ||
+    t === '📷' ||
+    t === 'sent a photo' ||
+    t === 'ছবি' ||
+    t === '১টি ছবি' ||
+    t === 'image' ||
+    t === 'picture' ||
+    /^(📷\s*)?(photo|image|picture|ছবি|sent a photo)(\s*\(\d+\))?$/i.test(t)
+  );
+}
+
 function isPhotoMessage(item: NotificationRecord, bodyText: string) {
-  if (item.mediaType === 'image') return true;
+  // If it's an avatar file, it's NOT a photo message
+  if (item.mediaPath && (item.mediaPath.includes('_avatar') || item.mediaPath.includes('avatar'))) {
+    return false;
+  }
+  if (item.mediaType === 'image' && item.mediaPath && !item.mediaPath.includes('_avatar')) {
+    return true;
+  }
   const lower = (bodyText || '').toLowerCase();
   return (
     lower.includes('📷') ||
@@ -365,6 +387,16 @@ export default function ChatThread() {
     (packageName || '').toLowerCase().includes('telegram');
   const isGroup = (title || '').includes('(B)') || (title || '').toLowerCase().includes('group');
 
+  const conversationKey = `${packageName}:${title}`;
+  const pinnedConversations = useSettings((s) => s.pinnedConversations);
+  const togglePinConversation = useSettings((s) => s.togglePinConversation);
+  const isPinned = pinnedConversations.includes(conversationKey);
+
+  const handleTogglePin = () => {
+    togglePinConversation(conversationKey);
+    showAppToast(isPinned ? 'Conversation unpinned' : '📌 Conversation pinned to top');
+  };
+
   const fetchMessages = useCallback(async () => {
     if (!packageName) return [];
     if (title) {
@@ -459,8 +491,14 @@ export default function ChatThread() {
   }, [rawMessages, searchQuery]);
 
   const threadAvatarUri = useMemo(() => {
+    const withAvatar = messages?.find((m) => m.avatarPath);
+    if (withAvatar?.avatarPath) {
+      return withAvatar.avatarPath.startsWith('file://')
+        ? withAvatar.avatarPath
+        : `file://${withAvatar.avatarPath}`;
+    }
     const withMedia = messages?.find(
-      (m) => m.mediaPath && (m.mediaType === 'image' || !m.mediaType)
+      (m) => m.mediaPath && (m.mediaPath.includes('_avatar') || m.mediaType === 'image' || !m.mediaType)
     );
     if (!withMedia?.mediaPath) return undefined;
     return withMedia.mediaPath.startsWith('file://')
@@ -561,17 +599,33 @@ export default function ChatThread() {
           </Text>
         </View>
 
-        <PressableBounce
-          scaleTo={0.9}
-          hitSlop={10}
-          onPress={() => {
-            if (showSearch) setSearchQuery('');
-            setShowSearch((v) => !v);
-          }}
-          style={{ padding: 4 }}
-        >
-          <Ionicons name={showSearch ? 'close' : 'search'} size={22} color="#FFFFFF" />
-        </PressableBounce>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <PressableBounce
+            scaleTo={0.9}
+            hitSlop={10}
+            onPress={handleTogglePin}
+            style={{ padding: 4 }}
+          >
+            <Ionicons
+              name={isPinned ? 'pin' : 'pin-outline'}
+              size={21}
+              color={isPinned ? '#2DD4BF' : '#9CA3AF'}
+              style={{ transform: [{ rotate: '45deg' }] }}
+            />
+          </PressableBounce>
+
+          <PressableBounce
+            scaleTo={0.9}
+            hitSlop={10}
+            onPress={() => {
+              if (showSearch) setSearchQuery('');
+              setShowSearch((v) => !v);
+            }}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name={showSearch ? 'close' : 'search'} size={22} color="#FFFFFF" />
+          </PressableBounce>
+        </View>
       </View>
 
       {/* Expandable Search within Thread */}
@@ -645,12 +699,24 @@ export default function ChatThread() {
               const isVoice = isVoiceMessage(item, body);
               const isPhoto = isPhotoMessage(item, body);
 
-              const validImageUri =
-                item.mediaPath && item.mediaType !== 'audio'
-                  ? item.mediaPath.startsWith('file://')
-                    ? item.mediaPath
-                    : `file://${item.mediaPath}`
-                  : null;
+              // Check if mediaPath points to an avatar image (must NEVER be displayed inside the message bubble as photo)
+              const isAvatarFile = Boolean(
+                item.mediaPath &&
+                  (item.mediaPath.includes('_avatar') || item.mediaPath.includes('avatar'))
+              );
+
+              // Genuine attached photo sent in chat (NOT an avatar):
+              const isGenuinePhoto = Boolean(
+                item.mediaPath &&
+                  item.mediaType === 'image' &&
+                  !isAvatarFile
+              );
+
+              const validImageUri = isGenuinePhoto
+                ? item.mediaPath!.startsWith('file://')
+                  ? item.mediaPath!
+                  : `file://${item.mediaPath!}`
+                : null;
 
               const hasRealImage = Boolean(validImageUri);
               const itemId = item.id || item.sbnKey;
@@ -682,11 +748,15 @@ export default function ChatThread() {
                           packageName={packageName}
                           appName={appName}
                           imageUri={
-                            item.mediaPath && item.mediaType === 'image'
-                              ? item.mediaPath.startsWith('file://')
-                                ? item.mediaPath
-                                : `file://${item.mediaPath}`
-                              : threadAvatarUri
+                            item.avatarPath
+                              ? item.avatarPath.startsWith('file://')
+                                ? item.avatarPath
+                                : `file://${item.avatarPath}`
+                              : isAvatarFile && item.mediaPath
+                                ? item.mediaPath.startsWith('file://')
+                                  ? item.mediaPath
+                                  : `file://${item.mediaPath}`
+                                : threadAvatarUri
                           }
                           size={32}
                           showAppBadge={false}
@@ -763,7 +833,7 @@ export default function ChatThread() {
                         ) : hasRealImage && validImageUri ? (
                           /* 2. Genuine Sent Photo */
                           <View>
-                            {body && !isPhoto ? (
+                            {body && !isPlaceholderOnly(body) ? (
                               <Text
                                 selectable
                                 style={{
@@ -796,7 +866,7 @@ export default function ChatThread() {
                               />
                             </Pressable>
                           </View>
-                        ) : isPhoto ? (
+                        ) : isPhoto && !isAvatarFile ? (
                           /* 3. Photo Message Card (Placeholder when payload not embedded - never shows avatar!) */
                           <PhotoPlaceholderCard caption={body} appName={appName} />
                         ) : body ? (

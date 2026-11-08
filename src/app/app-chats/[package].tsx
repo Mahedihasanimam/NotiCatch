@@ -11,6 +11,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '@/components/AppIcon';
 import { Avatar } from '@/components/Avatar';
+import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { EmptyState, LoadingState } from '@/components/states';
 import { Text } from '@/components/ui';
@@ -19,6 +20,7 @@ import { useLiveQuery } from '@/hooks/useLiveQuery';
 import { cleanChatTitle } from '@/lib/chat';
 import type { Conversation, NotificationRecord } from '@/lib/types';
 import { useDataVersion } from '@/store/dataVersion';
+import { useSettings } from '@/store/settings';
 import { radius, space } from '@/theme';
 
 function formatAppTime(timestamp: number): string {
@@ -131,6 +133,38 @@ export default function AppChatsScreen() {
     }
     return list;
   }, [allConversations, allNotifications, packageName, appName, search]);
+
+  const pinnedConversations = useSettings((s) => s.pinnedConversations);
+  const togglePinConversation = useSettings((s) => s.togglePinConversation);
+
+  const sortedAppConversations = useMemo(() => {
+    return [...appConversations].sort((a, b) => {
+      const keyA = `${a.packageName}:${a.title}`;
+      const keyB = `${b.packageName}:${b.title}`;
+      const pinA = pinnedConversations.includes(keyA);
+      const pinB = pinnedConversations.includes(keyB);
+      if (pinA && !pinB) return -1;
+      if (!pinA && pinB) return 1;
+      return b.lastPostedAt - a.lastPostedAt;
+    });
+  }, [appConversations, pinnedConversations]);
+
+  const handleTogglePin = (c: Conversation) => {
+    const key = `${c.packageName}:${c.title}`;
+    const isPinned = pinnedConversations.includes(key);
+    showAppConfirm(
+      isPinned ? 'Unpin Conversation?' : 'Pin Conversation? 📌',
+      isPinned
+        ? `Remove "${c.title}" from pinned conversations?`
+        : `Pin "${c.title}" to the top so you can always find it easily?`,
+      () => {
+        togglePinConversation(key);
+        showAppToast(isPinned ? 'Conversation unpinned' : `📌 "${c.title}" pinned to top`);
+      },
+      false,
+      isPinned ? 'Unpin' : 'Pin to Top',
+    );
+  };
 
   const hasConversations = appConversations.length > 0;
 
@@ -249,7 +283,7 @@ export default function AppChatsScreen() {
       ) : hasConversations ? (
         /* Conversation list */
         <FlatList
-          data={appConversations}
+          data={sortedAppConversations}
           keyExtractor={(item) => `${item.packageName}:${item.title}`}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}
           refreshControl={
@@ -260,81 +294,116 @@ export default function AppChatsScreen() {
               progressBackgroundColor="#2E323F"
             />
           }
-          renderItem={({ item }) => (
-            <PressableBounce
-              onPress={() => openThread(item)}
-              scaleTo={0.98}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 14,
-                paddingVertical: 14,
-                borderBottomWidth: 1,
-                borderBottomColor: 'rgba(255,255,255,0.06)',
-              }}
-            >
-              <Avatar
-                name={item.title}
-                packageName={item.packageName}
-                appName={item.appName}
-                imageUri={
-                  item.mediaPath
-                    ? item.mediaPath.startsWith('file://')
-                      ? item.mediaPath
-                      : `file://${item.mediaPath}`
-                    : undefined
-                }
-                size={48}
-                showAppBadge={true}
-              />
+          renderItem={({ item }) => {
+            const isPinned = pinnedConversations.includes(`${item.packageName}:${item.title}`);
 
-              <View style={{ flex: 1 }}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 3,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                    {isWhatsApp ? (
-                      <View
+            return (
+              <PressableBounce
+                onPress={() => openThread(item)}
+                onLongPress={() => handleTogglePin(item)}
+                delayLongPress={350}
+                scaleTo={0.98}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 14,
+                  paddingVertical: 14,
+                  paddingHorizontal: isPinned ? 10 : 0,
+                  backgroundColor: isPinned ? 'rgba(45, 212, 191, 0.05)' : 'transparent',
+                  borderLeftWidth: isPinned ? 3.5 : 0,
+                  borderLeftColor: '#2DD4BF',
+                  borderRadius: isPinned ? 10 : 0,
+                  marginBottom: isPinned ? 2 : 0,
+                  borderBottomWidth: isPinned ? 0 : 1,
+                  borderBottomColor: 'rgba(255,255,255,0.06)',
+                }}
+              >
+                <Avatar
+                  name={item.title}
+                  packageName={item.packageName}
+                  appName={item.appName}
+                  imageUri={
+                    item.mediaPath
+                      ? item.mediaPath.startsWith('file://')
+                        ? item.mediaPath
+                        : `file://${item.mediaPath}`
+                      : undefined
+                  }
+                  size={48}
+                  showAppBadge={true}
+                />
+
+                <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 3,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                      {isWhatsApp ? (
+                        <View
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: 2,
+                            backgroundColor: '#9C27B0',
+                          }}
+                        />
+                      ) : null}
+                      {(item.unreadCount ?? 0) > 0 ? (
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: '#EF4444',
+                          }}
+                        />
+                      ) : null}
+                      <Text
+                        numberOfLines={1}
                         style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 2,
-                          backgroundColor: '#9C27B0',
+                          fontSize: 15.5,
+                          fontFamily: 'Manrope_700Bold',
+                          color: '#FFFFFF',
+                          flex: 1,
                         }}
-                      />
-                    ) : null}
-                    {(item.unreadCount ?? 0) > 0 ? (
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: '#EF4444',
-                        }}
-                      />
-                    ) : null}
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        fontSize: 15.5,
-                        fontFamily: 'Manrope_700Bold',
-                        color: '#FFFFFF',
-                        flex: 1,
-                      }}
-                    >
-                      {item.title}
+                      >
+                        {item.title}
+                      </Text>
+
+                      {isPinned ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 3,
+                            backgroundColor: 'rgba(45, 212, 191, 0.15)',
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                          }}
+                        >
+                          <Ionicons
+                            name="pin"
+                            size={11}
+                            color="#2DD4BF"
+                            style={{ transform: [{ rotate: '45deg' }] }}
+                          />
+                          <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: '#2DD4BF' }}>
+                            PINNED
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <Text style={{ fontSize: 12, color: isPinned ? '#2DD4BF' : '#7C8494', marginLeft: 8 }}>
+                      {formatAppTime(item.lastPostedAt)}
                     </Text>
                   </View>
-
-                  <Text style={{ fontSize: 12, color: '#7C8494', marginLeft: 8 }}>
-                    {formatAppTime(item.lastPostedAt)}
-                  </Text>
-                </View>
 
                 <View
                   style={{
@@ -381,7 +450,8 @@ export default function AppChatsScreen() {
                 </View>
               </View>
             </PressableBounce>
-          )}
+            );
+          }}
         />
       ) : (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl }}>

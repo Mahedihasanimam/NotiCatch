@@ -19,6 +19,14 @@ describe('settings store', () => {
     expect(toCaptureConfig(useSettings.getState()).retentionDays).toBe(0);
   });
 
+  it('toggles pinned conversations', () => {
+    const key = 'com.whatsapp:MessMates';
+    useSettings.getState().togglePinConversation(key);
+    expect(useSettings.getState().pinnedConversations).toContain(key);
+    useSettings.getState().togglePinConversation(key);
+    expect(useSettings.getState().pinnedConversations).not.toContain(key);
+  });
+
   it('keeps onboarding state when resetting', () => {
     useSettings.getState().update({ theme: 'light', retentionDays: 7 });
     useSettings.getState().reset();

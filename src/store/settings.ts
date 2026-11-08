@@ -23,12 +23,15 @@ export interface SettingsData {
   isPro: boolean;
   trialStartedAt: number | null;
   statusBarNotification: boolean;
+  notifyOnDeleted: boolean;
+  pinnedConversations: string[];
 }
 
 export interface SettingsState extends SettingsData {
   update: (patch: Partial<SettingsData>) => void;
   setExcluded: (packages: string[]) => void;
   toggleExcluded: (packageName: string) => void;
+  togglePinConversation: (key: string) => void;
   setPro: (isPro: boolean) => void;
   reset: () => void;
 }
@@ -51,6 +54,8 @@ export const DEFAULT_SETTINGS: SettingsData = {
   isPro: false,
   trialStartedAt: null,
   statusBarNotification: true,
+  notifyOnDeleted: true,
+  pinnedConversations: [],
 };
 
 const kvStorage = createJSONStorage(() => ({
@@ -90,6 +95,12 @@ export const useSettings = create<SettingsState>()(
             ? s.excludedPackages.filter((p) => p !== packageName)
             : [...s.excludedPackages, packageName],
         })),
+      togglePinConversation: (key: string) =>
+        set((s) => ({
+          pinnedConversations: s.pinnedConversations.includes(key)
+            ? s.pinnedConversations.filter((k) => k !== key)
+            : [key, ...s.pinnedConversations],
+        })),
       setPro: (isPro) => set({ isPro, trialStartedAt: isPro ? Date.now() : null }),
       reset: () => set({ ...DEFAULT_SETTINGS, onboarded: true }),
     }),
@@ -106,6 +117,8 @@ export const useSettings = create<SettingsState>()(
         lockEnabled: s.lockEnabled, biometricEnabled: s.biometricEnabled, lockDelayMs: s.lockDelayMs,
         secureScreen: s.secureScreen, isPro: s.isPro, trialStartedAt: s.trialStartedAt,
         statusBarNotification: s.statusBarNotification,
+        notifyOnDeleted: s.notifyOnDeleted,
+        pinnedConversations: s.pinnedConversations,
       }),
     },
   ),
@@ -121,5 +134,6 @@ export function toCaptureConfig(s: SettingsData) {
     keepArchived: s.keepArchived,
     excludedPackages: s.excludedPackages,
     statusBarNotification: s.statusBarNotification,
+    notifyOnDeleted: s.notifyOnDeleted,
   };
 }

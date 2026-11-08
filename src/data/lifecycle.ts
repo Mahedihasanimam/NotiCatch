@@ -7,7 +7,7 @@ import { useSecurity } from '@/store/security';
 import { toCaptureConfig, useSettings, type SettingsData } from '@/store/settings';
 
 const CAPTURE_KEYS: (keyof SettingsData)[] = [
-  'captureEnabled', 'captureOngoing', 'skipGroupSummary', 'retentionDays', 'keepFavorites', 'keepArchived', 'excludedPackages', 'statusBarNotification',
+  'captureEnabled', 'captureOngoing', 'skipGroupSummary', 'retentionDays', 'keepFavorites', 'keepArchived', 'excludedPackages', 'statusBarNotification', 'notifyOnDeleted',
 ];
 
 /** Mirrors capture-related settings into the native layer so the service honours them without the UI. */

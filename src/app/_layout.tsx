@@ -7,6 +7,8 @@ import { View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LockScreen } from '@/components/LockScreen';
 import { GlobalDialogOverlay } from '@/components/CustomDialog';
+import { AppUpdateModal } from '@/components/AppUpdateModal';
+import { checkForUpdate, useUpdateModal } from '@/lib/appUpdate';
 import { Text } from '@/components/ui';
 import { clearDemoData } from '@/data/demoData';
 import { requestNotificationPermission } from '@/data/repository';
@@ -35,9 +37,22 @@ function Shell() {
     void runRetentionCleanup();
     void clearDemoData();
     void requestNotificationPermission();
+
+    // Check for remote app update in background
+    const updateTimer = setTimeout(() => {
+      void checkForUpdate().then((result) => {
+        if (result.updateAvailable && result.updateInfo) {
+          useUpdateModal.getState().showModal(result.updateInfo);
+        }
+      });
+    }, 2500);
+
     const disposers = [startNativeSync(), startChangeBridge(), startAppStateHandling(), startSecureScreenSync()];
     // Capture state can change while we are in the foreground (user toggles access in settings overlay).
-    return () => disposers.forEach((d) => d());
+    return () => {
+      clearTimeout(updateTimer);
+      disposers.forEach((d) => d());
+    };
   }, []);
 
   useEffect(() => {
@@ -147,6 +162,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <Shell />
         <GlobalDialogOverlay />
+        <AppUpdateModal />
       </ThemeProvider>
     </SafeAreaProvider>
   );

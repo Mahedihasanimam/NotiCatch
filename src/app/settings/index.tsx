@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, Switch, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
 import { configureCapture, deleteNotifications, openAccessSettings, openAppSettings, postTestNotification, queryNotifications } from '@/data/repository';
+import { CURRENT_APP_VERSION, checkForUpdate, openPlayStore, useUpdateModal } from '@/lib/appUpdate';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
 import { toCaptureConfig, useSettings } from '@/store/settings';
@@ -17,7 +19,36 @@ export default function SettingsIndexScreen() {
   const lockEnabled = useSettings((s) => s.lockEnabled);
   const retentionDays = useSettings((s) => s.retentionDays);
   const statusBarNotification = useSettings((s) => s.statusBarNotification);
+  const notifyOnDeleted = useSettings((s) => s.notifyOnDeleted);
   const updateSettings = useSettings((s) => s.update);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    showAppToast('Checking for updates...');
+    try {
+      const res = await checkForUpdate(true);
+      if (res.updateAvailable && res.updateInfo) {
+        useUpdateModal.getState().showModal(res.updateInfo);
+      } else {
+        showAppConfirm(
+          'You are up to date! 🎉',
+          `NotiCatch v${res.currentVersion} is currently the latest version. Would you like to view the Google Play Store listing?`,
+          () => {
+            void openPlayStore();
+          },
+          false,
+          'Open Play Store',
+          'Close',
+        );
+      }
+    } catch {
+      showAppToast('Could not check for updates. Check internet connection.', 'error');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const handleClearAllHistory = () => {
     showAppConfirm(
@@ -169,6 +200,40 @@ export default function SettingsIndexScreen() {
             }}
             trackColor={{ false: '#4B5563', true: '#0A6C74' }}
             thumbColor={statusBarNotification ? '#FFFFFF' : '#9CA3AF'}
+          />
+        </View>
+
+        {/* Deleted Message Alerts */}
+        <View
+          style={{
+            backgroundColor: '#2E323F',
+            padding: 16,
+            borderRadius: 14,
+            marginBottom: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 10 }}>
+            <Ionicons name="alert-circle" size={22} color="#EF4444" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 14 }}>
+                Deleted Message Alerts
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                Get notified immediately when someone deletes a message in WhatsApp, Messenger, etc.
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={notifyOnDeleted}
+            onValueChange={(val) => {
+              updateSettings({ notifyOnDeleted: val });
+              void configureCapture(toCaptureConfig({ ...useSettings.getState(), notifyOnDeleted: val }));
+            }}
+            trackColor={{ false: '#4B5563', true: '#0A6C74' }}
+            thumbColor={notifyOnDeleted ? '#FFFFFF' : '#9CA3AF'}
           />
         </View>
 
@@ -436,6 +501,8 @@ export default function SettingsIndexScreen() {
               justifyContent: 'space-between',
               paddingVertical: 16,
               paddingHorizontal: 18,
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(255,255,255,0.06)',
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -445,11 +512,55 @@ export default function SettingsIndexScreen() {
                   About NotiCatch
                 </Text>
                 <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
-                  Version 1.0.0
+                  Version {CURRENT_APP_VERSION}
                 </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#7C8494" />
+          </PressableBounce>
+
+          {/* Item 3: Check for Updates */}
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={() => void handleCheckUpdate()}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 16,
+              paddingHorizontal: 18,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <Ionicons name="cloud-download-outline" size={22} color="#2DD4BF" />
+              <View>
+                <Text style={{ fontSize: 15.5, fontFamily: 'Manrope_600SemiBold', color: '#FFFFFF' }}>
+                  Check for Updates
+                </Text>
+                <Text style={{ fontSize: 12.5, color: '#7C8494', marginTop: 1 }}>
+                  Tap to check Google Play Store
+                </Text>
+              </View>
+            </View>
+            {checkingUpdate ? (
+              <ActivityIndicator size="small" color="#2DD4BF" />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    backgroundColor: 'rgba(45, 212, 191, 0.12)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontFamily: 'Manrope_700Bold', color: '#2DD4BF' }}>
+                    v{CURRENT_APP_VERSION}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#7C8494" />
+              </View>
+            )}
           </PressableBounce>
         </View>
 

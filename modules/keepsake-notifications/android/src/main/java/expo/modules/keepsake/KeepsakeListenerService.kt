@@ -208,13 +208,19 @@ class KeepsakeListenerService : NotificationListenerService() {
     // Check for message deletion (e.g. WhatsApp "This message was deleted")
     val isDel = isDeletedMessage(text) || isDeletedMessage(big)
     if (isDel) {
-      NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
+      val deletedInfo = NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
+      if (deletedInfo != null) {
+        DeletedAlertManager.notifyDeleted(this, deletedInfo)
+      }
     }
 
     // Try extracting genuine media (photo or audio) from the notification
     val media = extractNotificationMedia(n, x, pkg)
     val mediaPath = media?.path
     val mediaType = media?.type
+
+    // Extract sender avatar / profile picture (EXTRA_LARGE_ICON)
+    val avatarPath = extractNotificationAvatar(n, x, pkg)
 
     val record = NotificationDb.Captured(
       sbnKey = sbn.key,
@@ -235,6 +241,7 @@ class KeepsakeListenerService : NotificationListenerService() {
       mediaType = mediaType,
       isDeleted = isDel,
       deletedAt = if (isDel) sbn.postTime else null,
+      avatarPath = avatarPath,
     )
     return NotificationDb.get(this).insertCaptured(record)
   }
@@ -362,29 +369,41 @@ class KeepsakeListenerService : NotificationListenerService() {
       return ExtractedMedia(null, "audio")
     }
 
-    // 6. Check EXTRA_LARGE_ICON ("android.largeIcon" or Notification.EXTRA_LARGE_ICON)
-    // In Android messaging apps (WhatsApp, Messenger, Telegram, Instagram, Gmail, etc.),
-    // EXTRA_LARGE_ICON contains the user's avatar / sender profile picture.
-    try {
-      val largeIconObj = extras.get(Notification.EXTRA_LARGE_ICON) ?: extras.get("android.largeIcon")
-      if (largeIconObj is Bitmap && largeIconObj.width > 24 && largeIconObj.height > 24) {
-        val path = MediaSaver.saveBitmap(this, largeIconObj, "${prefix}_avatar")
-        if (path != null) return ExtractedMedia(path, "image")
-      } else if (largeIconObj is Icon) {
-        val path = MediaSaver.saveIcon(this, largeIconObj, "${prefix}_avatar")
-        if (path != null) return ExtractedMedia(path, "image")
-      }
-    } catch (e: Exception) {
-      Log.d(TAG, "EXTRA_LARGE_ICON check failed", e)
-    }
-
     val isImage = combined.contains("📷") || combined.contains("sent a photo") ||
                   combined.contains("photo") || combined.contains("image") ||
                   combined.contains("ছবি")
     if (isImage) {
+      // If a photo was received and no BigPicture was found, try EXTRA_LARGE_ICON as photo thumbnail
+      try {
+        val largeIconObj = extras.get(Notification.EXTRA_LARGE_ICON) ?: extras.get("android.largeIcon")
+        if (largeIconObj is Bitmap && largeIconObj.width > 48 && largeIconObj.height > 48) {
+          val path = MediaSaver.saveBitmap(this, largeIconObj, prefix)
+          if (path != null) return ExtractedMedia(path, "image")
+        } else if (largeIconObj is Icon) {
+          val path = MediaSaver.saveIcon(this, largeIconObj, prefix)
+          if (path != null) return ExtractedMedia(path, "image")
+        }
+      } catch (e: Exception) {
+        Log.d(TAG, "EXTRA_LARGE_ICON photo check failed", e)
+      }
       return ExtractedMedia(null, "image")
     }
 
+    return null
+  }
+
+  private fun extractNotificationAvatar(n: Notification, extras: Bundle, pkg: String): String? {
+    val prefix = pkg.substringAfterLast('.')
+    try {
+      val largeIconObj = extras.get(Notification.EXTRA_LARGE_ICON) ?: extras.get("android.largeIcon")
+      if (largeIconObj is Bitmap && largeIconObj.width > 24 && largeIconObj.height > 24) {
+        return MediaSaver.saveBitmap(this, largeIconObj, "${prefix}_avatar")
+      } else if (largeIconObj is Icon) {
+        return MediaSaver.saveIcon(this, largeIconObj, "${prefix}_avatar")
+      }
+    } catch (e: Exception) {
+      Log.d(TAG, "extractNotificationAvatar failed", e)
+    }
     return null
   }
 

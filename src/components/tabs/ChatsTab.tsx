@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -34,6 +34,8 @@ export function ChatsTab() {
   const bump = useDataVersion((s) => s.bump);
   const granted = useAccess((s) => s.granted);
   const isPro = useSettings((s) => s.isPro);
+  const pinnedConversations = useSettings((s) => s.pinnedConversations);
+  const togglePinConversation = useSettings((s) => s.togglePinConversation);
   const [refreshing, setRefreshing] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
 
@@ -46,6 +48,35 @@ export function ChatsTab() {
   };
 
   const list = conversations ?? [];
+
+  const sortedList = useMemo(() => {
+    return [...list].sort((a, b) => {
+      const keyA = `${a.packageName}:${a.title}`;
+      const keyB = `${b.packageName}:${b.title}`;
+      const pinA = pinnedConversations.includes(keyA);
+      const pinB = pinnedConversations.includes(keyB);
+      if (pinA && !pinB) return -1;
+      if (!pinA && pinB) return 1;
+      return b.lastPostedAt - a.lastPostedAt;
+    });
+  }, [list, pinnedConversations]);
+
+  const handleTogglePin = (c: Conversation) => {
+    const key = `${c.packageName}:${c.title}`;
+    const isPinned = pinnedConversations.includes(key);
+    showAppConfirm(
+      isPinned ? 'Unpin Conversation?' : 'Pin Conversation? 📌',
+      isPinned
+        ? `Remove "${c.title}" from pinned conversations?`
+        : `Pin "${c.title}" to the top so you can always find it easily?`,
+      () => {
+        togglePinConversation(key);
+        showAppToast(isPinned ? 'Conversation unpinned' : `📌 "${c.title}" pinned to top`);
+      },
+      false,
+      isPinned ? 'Unpin' : 'Pin to Top',
+    );
+  };
 
   const openThread = async (c: Conversation) => {
     try {
@@ -168,7 +199,7 @@ export function ChatsTab() {
           </View>
         ) : (
           <FlatList
-            data={list}
+            data={sortedList}
             keyExtractor={(item) => `${item.packageName}:${item.title}`}
             contentContainerStyle={{
               paddingHorizontal: 16,
@@ -189,17 +220,26 @@ export function ChatsTab() {
                 item.title.toLowerCase().includes('group') ||
                 item.packageName.toLowerCase().includes('whatsapp');
               const isDeleted = item.deletedCount > 0;
+              const isPinned = pinnedConversations.includes(`${item.packageName}:${item.title}`);
 
               return (
                 <PressableBounce
                   onPress={() => openThread(item)}
+                  onLongPress={() => handleTogglePin(item)}
+                  delayLongPress={350}
                   scaleTo={0.98}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 14,
                     paddingVertical: 14,
-                    borderBottomWidth: 1,
+                    paddingHorizontal: isPinned ? 10 : 0,
+                    backgroundColor: isPinned ? 'rgba(45, 212, 191, 0.05)' : 'transparent',
+                    borderLeftWidth: isPinned ? 3.5 : 0,
+                    borderLeftColor: '#2DD4BF',
+                    borderRadius: isPinned ? 10 : 0,
+                    marginBottom: isPinned ? 2 : 0,
+                    borderBottomWidth: isPinned ? 0 : 1,
                     borderBottomColor: 'rgba(255,255,255,0.06)',
                   }}
                 >
@@ -249,9 +289,33 @@ export function ChatsTab() {
                         >
                           {item.title}
                         </Text>
+
+                        {isPinned ? (
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 3,
+                              backgroundColor: 'rgba(45, 212, 191, 0.15)',
+                              paddingHorizontal: 6,
+                              paddingVertical: 2,
+                              borderRadius: 4,
+                            }}
+                          >
+                            <Ionicons
+                              name="pin"
+                              size={11}
+                              color="#2DD4BF"
+                              style={{ transform: [{ rotate: '45deg' }] }}
+                            />
+                            <Text style={{ fontSize: 10, fontFamily: 'Manrope_700Bold', color: '#2DD4BF' }}>
+                              PINNED
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
 
-                      <Text style={{ fontSize: 12, color: '#7C8494' }}>
+                      <Text style={{ fontSize: 12, color: isPinned ? '#2DD4BF' : '#7C8494' }}>
                         {formatChatListTime(item.lastPostedAt)}
                       </Text>
                     </View>
