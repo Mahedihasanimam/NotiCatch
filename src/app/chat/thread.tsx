@@ -6,6 +6,8 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   Share,
@@ -304,6 +306,34 @@ export default function ChatThread() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<NotificationRecord>>(null);
 
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const initialScrolledRef = useRef(false);
+  const isNearBottomRef = useRef(true);
+  const prevMessagesLengthRef = useRef(0);
+  const userHasScrolledRef = useRef(false);
+
+  // Reset scroll state on conversation change
+  useEffect(() => {
+    initialScrolledRef.current = false;
+    isNearBottomRef.current = true;
+    prevMessagesLengthRef.current = 0;
+    userHasScrolledRef.current = false;
+    setShowScrollBottom(false);
+
+    // After 800ms initial render settling, enable normal free scrolling
+    const timer = setTimeout(() => {
+      userHasScrolledRef.current = true;
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [packageName, title]);
+
+  // When leaving thread, bump data version so parent conversation lists refresh unread badges
+  useEffect(() => {
+    return () => {
+      bump();
+    };
+  }, [bump]);
+
   const [playingAudioId, setPlayingAudioId] = useState<number | string | null>(null);
   const [playingProgress, setPlayingProgress] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -431,12 +461,12 @@ export default function ChatThread() {
     notificationId,
   ]);
 
-  // Mark unread messages in this thread as read
+  // Mark unread messages in this thread as read without triggering an immediate component re-query loop
   useEffect(() => {
     if (rawMessages && rawMessages.length > 0) {
       const unreadIds = rawMessages.filter((m) => !m.isArchived).map((m) => m.id);
       if (unreadIds.length > 0) {
-        void setArchived(unreadIds, true).then(() => bump());
+        void setArchived(unreadIds, true);
       }
     }
   }, [rawMessages]);
@@ -475,6 +505,16 @@ export default function ChatThread() {
         if (rawCurrent && rawCurrent === rawPrev && sameSender && closeInTime) {
           continue;
         }
+
+        // 4. If current is a generic "This message was deleted" placeholder, and prev was already marked deleted within 5 min -> skip redundant placeholder!
+        const isDelPlaceholder =
+          rawCurrent === 'this message was deleted' ||
+          rawCurrent === 'message was deleted' ||
+          rawCurrent === 'এই মেসেজটি মুছে ফেলা হয়েছে' ||
+          rawCurrent === 'এই বার্তাটি মুছে ফেলা হয়েছে';
+        if (isDelPlaceholder && prev.isDeleted && Math.abs(msg.postedAt - prev.postedAt) < 300000) {
+          continue;
+        }
       }
       deduplicated.push(msg);
     }
@@ -505,6 +545,33 @@ export default function ChatThread() {
       ? withMedia.mediaPath
       : `file://${withMedia.mediaPath}`;
   }, [messages]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 60;
+    const isBottom =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    isNearBottomRef.current = isBottom;
+
+    const isFarFromBottom = contentSize.height - (layoutMeasurement.height + contentOffset.y) > 150;
+    setShowScrollBottom(isFarFromBottom);
+  }, []);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    userHasScrolledRef.current = true;
+  }, []);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (!userHasScrolledRef.current) {
+      // Screen opening phase: instantly jump to bottom without animation or multiple jumps
+      flatListRef.current?.scrollToEnd({ animated: false });
+      initialScrolledRef.current = true;
+    } else if (messages.length > prevMessagesLengthRef.current && isNearBottomRef.current) {
+      // New message received while user is reading at the bottom: smooth scroll down
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
@@ -680,9 +747,21 @@ export default function ChatThread() {
           <FlatList
             ref={flatListRef}
             data={messages}
-            keyExtractor={(m) => String(m.id || m.sbnKey)}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            keyExtractor={(m, index) => (m.id ? String(m.id) : `${m.sbnKey || 'msg'}_${m.postedAt}_${index}`)}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 }}
+            initialNumToRender={messages.length > 0 ? Math.min(messages.length, 50) : 20}
+            maxToRenderPerBatch={25}
+            windowSize={11}
+            removeClippedSubviews={Platform.OS === 'android'}
+            scrollEventThrottle={16}
+            onScroll={handleScroll}
+            onScrollBeginDrag={handleScrollBeginDrag}
+            onContentSizeChange={handleContentSizeChange}
+            onLayout={() => {
+              if (!userHasScrolledRef.current && messages.length > 0) {
+                flatListRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
             renderItem={({ item, index }) => {
               const raw = item.text ?? item.bigText ?? '';
               const { sender, body } = parseSenderAndBody(raw, item.title ?? 'Sender');
@@ -904,6 +983,39 @@ export default function ChatThread() {
           />
         )}
 
+        {/* Floating Scroll to Bottom Button (WhatsApp style) */}
+        {showScrollBottom ? (
+          <PressableBounce
+            scaleTo={0.9}
+            onPress={() => {
+              isNearBottomRef.current = true;
+              flatListRef.current?.scrollToEnd({ animated: true });
+              setShowScrollBottom(false);
+            }}
+            style={{
+              position: 'absolute',
+              right: 18,
+              bottom: isChatApp ? 68 : 20,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: '#20232C',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.15)',
+              elevation: 6,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.35,
+              shadowRadius: 5,
+              zIndex: 10,
+            }}
+          >
+            <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+          </PressableBounce>
+        ) : null}
+
         {/* 3. Bottom Bar: Smart Quick Reply */}
         {isChatApp ? (
           <View
@@ -924,6 +1036,11 @@ export default function ChatThread() {
               value={inputText}
               onChangeText={setInputText}
               onSubmitEditing={() => void handleSend()}
+              onFocus={() => {
+                if (isNearBottomRef.current) {
+                  setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+                }
+              }}
               returnKeyType="send"
               style={{
                 flex: 1,

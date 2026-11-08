@@ -208,9 +208,13 @@ class KeepsakeListenerService : NotificationListenerService() {
     // Check for message deletion (e.g. WhatsApp "This message was deleted")
     val isDel = isDeletedMessage(text) || isDeletedMessage(big)
     if (isDel) {
-      val deletedInfo = NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime)
+      val deletedInfo = NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime, text ?: big)
       if (deletedInfo != null) {
         DeletedAlertManager.notifyDeleted(this, deletedInfo)
+        // Original message was identified and marked as deleted!
+        // Do not insert a duplicate blank "This message was deleted" item into the chat.
+        ChangeBus.emit("posted")
+        return true
       }
     }
 
@@ -251,7 +255,10 @@ class KeepsakeListenerService : NotificationListenerService() {
     val lower = text.trim().lowercase()
     return DELETION_PHRASES.any { lower.contains(it) } ||
       (lower.contains("message") && lower.contains("deleted")) ||
-      (lower.contains("মুছে") && (lower.contains("মেসেজ") || lower.contains("বার্তা")))
+      (lower.contains("মুছে") && (lower.contains("মেসেজ") || lower.contains("বার্তা") || lower.contains("ফেলা") || lower.contains("দেওয়া"))) ||
+      (lower.contains("ডিলিট") && (lower.contains("মেসেজ") || lower.contains("বার্তা") || lower.contains("করা"))) ||
+      lower.contains("this message was deleted") ||
+      lower.contains("message was deleted")
   }
 
   private fun maybeCleanup(force: Boolean) {

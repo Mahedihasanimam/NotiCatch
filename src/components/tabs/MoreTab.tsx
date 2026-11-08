@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ImageBackground, Linking, ScrollView, Share, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Linking, ScrollView, Share, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PremiumModal } from '@/components/PremiumModal';
-import { showAppToast } from '@/components/CustomDialog';
+import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
+import { CURRENT_APP_VERSION, checkForUpdate, openPlayStore, useUpdateModal } from '@/lib/appUpdate';
 import { presentCustomerCenter } from '@/lib/purchases';
 import { useSettings } from '@/store/settings';
 
@@ -42,6 +43,35 @@ export function MoreTab() {
 
   const handleOpenAbout = () => {
     router.push('/settings/about' as any);
+  };
+
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    showAppToast('Checking for updates...');
+    try {
+      const res = await checkForUpdate(true);
+      if (res.updateAvailable && res.updateInfo) {
+        useUpdateModal.getState().showModal(res.updateInfo);
+      } else {
+        showAppConfirm(
+          'You are up to date! 🎉',
+          `NotiCatch v${res.currentVersion} is currently the latest version. Would you like to view the Google Play Store listing?`,
+          () => {
+            void openPlayStore();
+          },
+          false,
+          'Open Play Store',
+          'Close',
+        );
+      }
+    } catch {
+      showAppToast('Could not check for updates. Check internet connection.', 'error');
+    } finally {
+      setCheckingUpdate(false);
+    }
   };
 
   return (
@@ -336,6 +366,68 @@ export function MoreTab() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#7C8494" />
           </PressableBounce>
+
+          {/* Card 3: Check for Updates */}
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={() => void handleCheckUpdate()}
+            style={{
+              backgroundColor: '#2E323F',
+              borderRadius: 16,
+              paddingVertical: 18,
+              paddingHorizontal: 20,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18, flex: 1, marginRight: 10 }}>
+              <Ionicons name="cloud-download-outline" size={24} color="#2DD4BF" />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontFamily: 'Manrope_600SemiBold',
+                    fontSize: 16.5,
+                    color: '#FFFFFF',
+                  }}
+                >
+                  Check for Updates
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: 'Manrope_500Medium',
+                    fontSize: 12,
+                    color: '#7C8494',
+                    marginTop: 2,
+                  }}
+                >
+                  Version {CURRENT_APP_VERSION} • Tap to check
+                </Text>
+              </View>
+            </View>
+
+            {checkingUpdate ? (
+              <ActivityIndicator size="small" color="#2DD4BF" />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{
+
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(45, 212, 191, 0.3)',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontFamily: 'Manrope_700Bold', color: '#2DD4BF' }}>
+                    v{CURRENT_APP_VERSION}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#7C8494" />
+              </View>
+            )}
+          </PressableBounce>
         </View>
 
         {/* 3. Social / Share / Help Simple Rows */}
@@ -468,7 +560,7 @@ export function MoreTab() {
               marginTop: 4,
             }}
           >
-            Version 1.0.0
+            Version {CURRENT_APP_VERSION}
           </Text>
         </View>
       </ScrollView>

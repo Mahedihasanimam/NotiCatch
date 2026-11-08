@@ -150,37 +150,105 @@ class NotificationDb private constructor(context: Context) :
     val mediaType: String?,
   )
 
+  private fun cleanTitle(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    var t = raw.trim()
+    // Remove (N messages), (N new messages), (Nটি মেসেজ), etc.
+    t = t.replace(Regex("""\s*\(\d+\s*[^)]*\)"""), "").trim()
+    // If format is "Group: Sender", extract group part
+    val colonIdx = t.indexOf(':')
+    if (colonIdx > 0) {
+      t = t.substring(0, colonIdx).trim()
+    }
+    return t.lowercase()
+  }
+
   /** Marks the most recent message from contact/package as deleted. Returns DeletedMessageInfo if found. */
-  fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long): DeletedMessageInfo? = synchronized(lock) {
+  fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long, deletionText: String? = null): DeletedMessageInfo? = synchronized(lock) {
     val db = writableDatabase
     val cutoff = deletedAt - 86_400_000L // within 24 hours
-    val cursor = if (title.isNullOrEmpty()) {
-      db.rawQuery(
-        "SELECT id, title, text, big_text, app_name, media_type FROM notifications WHERE package_name = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
-        arrayOf(packageName, cutoff.toString()),
-      )
-    } else {
-      db.rawQuery(
-        "SELECT id, title, text, big_text, app_name, media_type FROM notifications WHERE package_name = ? AND title = ? AND is_deleted = 0 AND posted_at >= ? ORDER BY posted_at DESC LIMIT 1",
-        arrayOf(packageName, title, cutoff.toString()),
-      )
-    }
-    cursor.use {
-      if (it.moveToFirst()) {
-        val id = it.getLong(0)
-        val senderTitle = if (it.isNull(1)) null else it.getString(1)
-        val origText = if (!it.isNull(2)) it.getString(2) else if (!it.isNull(3)) it.getString(3) else null
-        val appName = if (it.isNull(4)) packageName else it.getString(4)
-        val mediaType = if (it.isNull(5)) null else it.getString(5)
 
-        val cv = ContentValues().apply {
-          put("is_deleted", 1)
-          put("deleted_at", deletedAt)
+    val cursor = db.rawQuery(
+      """
+      SELECT id, title, text, big_text, app_name, media_type, sub_text, posted_at
+      FROM notifications
+      WHERE package_name = ? AND is_deleted = 0 AND posted_at >= ?
+      ORDER BY posted_at DESC
+      LIMIT 50
+      """,
+      arrayOf(packageName, cutoff.toString()),
+    )
+
+    val cleanTarget = cleanTitle(title)
+    val isGenericAppTitle = cleanTarget.isEmpty() ||
+      cleanTarget == "whatsapp" ||
+      cleanTarget == "হোয়াটসঅ্যাপ" ||
+      cleanTarget == "telegram" ||
+      cleanTarget == "messenger" ||
+      cleanTarget == "messages"
+
+    // Extract potential sender from deletion text (e.g. "Arif: This message was deleted")
+    val senderFromText = if (!deletionText.isNullOrEmpty() && deletionText.contains(':')) {
+      deletionText.substringBefore(':').trim().lowercase()
+    } else null
+
+    var matchedId: Long? = null
+    var matchedSenderTitle: String? = null
+    var matchedOrigText: String? = null
+    var matchedAppName: String = packageName
+    var matchedMediaType: String? = null
+
+    cursor.use { c ->
+      while (c.moveToNext()) {
+        val id = c.getLong(0)
+        val candTitle = if (c.isNull(1)) "" else c.getString(1)
+        val candText = if (!c.isNull(2)) c.getString(2) else if (!c.isNull(3)) c.getString(3) else ""
+        val candApp = if (c.isNull(4)) packageName else c.getString(4)
+        val candMedia = if (c.isNull(5)) null else c.getString(5)
+        val candSub = if (c.isNull(6)) "" else c.getString(6)
+
+        // Skip candidate if its text is itself a deletion phrase (don't mark a deletion placeholder as deleted)
+        val candLower = candText.lowercase()
+        if (candLower.contains("this message was deleted") ||
+            candLower.contains("message was deleted") ||
+            candLower.contains("মুছে ফেলা হয়েছে") ||
+            candLower.contains("deleted this message")) {
+          continue
         }
-        db.update("notifications", cv, "id = ?", arrayOf(id.toString()))
-        return DeletedMessageInfo(id, packageName, appName, senderTitle ?: title, origText, mediaType)
+
+        val candClean = cleanTitle(candTitle)
+
+        // 1. If notification has a specific contact/group title, match against candidate
+        val isMatch = if (!isGenericAppTitle) {
+          candClean == cleanTarget ||
+          (cleanTarget.isNotEmpty() && (candClean.contains(cleanTarget) || cleanTarget.contains(candClean))) ||
+          (senderFromText != null && (candClean.contains(senderFromText) || candSub.lowercase().contains(senderFromText) || candText.lowercase().contains(senderFromText)))
+        } else {
+          // 2. Generic title (e.g. "WhatsApp"): match the most recent message within 15 minutes
+          val candPostTime = c.getLong(7)
+          (deletedAt - candPostTime) < 900_000L // 15 minutes
+        }
+
+        if (isMatch) {
+          matchedId = id
+          matchedSenderTitle = candTitle.ifEmpty { title }
+          matchedOrigText = candText
+          matchedAppName = candApp
+          matchedMediaType = candMedia
+          break
+        }
       }
     }
+
+    if (matchedId != null) {
+      val cv = ContentValues().apply {
+        put("is_deleted", 1)
+        put("deleted_at", deletedAt)
+      }
+      db.update("notifications", cv, "id = ?", arrayOf(matchedId.toString()))
+      return DeletedMessageInfo(matchedId, packageName, matchedAppName, matchedSenderTitle ?: title, matchedOrigText, matchedMediaType)
+    }
+
     return null
   }
 
