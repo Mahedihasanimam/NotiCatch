@@ -11,8 +11,9 @@ import { useSettings } from '@/store/settings';
 // Platform-specific API keys from RevenueCat dashboard
 export const REVENUECAT_API_KEY = 'goog_WEUfiWEEiTZXBgtbESWuIANGlCV';
 
-// Fallback test key for simulator / environments without Google Play Billing
-export const REVENUECAT_TEST_KEY = 'test_YxbvPPIVZgfpXGBTqPtGdgqNISN';
+// Optional RevenueCat Test Store key for local development only. Put it in a git-ignored
+// `.env.local` as EXPO_PUBLIC_REVENUECAT_TEST_KEY. It is never used in release builds.
+const DEV_TEST_KEY = __DEV__ ? process.env.EXPO_PUBLIC_REVENUECAT_TEST_KEY : undefined;
 
 // Entitlement identifier configured in RevenueCat dashboard
 export const ENTITLEMENT_ID = 'noticatch_pro';
@@ -150,7 +151,7 @@ export function initPurchases(): void {
       if (message.includes('BILLING_UNAVAILABLE') || message.includes('Billing service unavailable')) {
         if (__DEV__) {
           console.warn(
-            '[RevenueCat Notice] Google Play Billing service is unavailable on this device/environment. (Ensure device has Google Play Store signed in, or use RevenueCat test_ key for offline development).'
+            '[RevenueCat Notice] Google Play Billing service is unavailable on this device/environment. (Ensure device has Google Play Store signed in, or set EXPO_PUBLIC_REVENUECAT_TEST_KEY in .env.local for development).'
           );
         }
         return;
@@ -170,7 +171,7 @@ export function initPurchases(): void {
     }
 
     // Configure RevenueCat SDK
-    Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+    Purchases.configure({ apiKey: DEV_TEST_KEY || REVENUECAT_API_KEY });
     initialized = true;
 
     // Listen for real-time subscription status changes (renewals, cancellations, expirations)

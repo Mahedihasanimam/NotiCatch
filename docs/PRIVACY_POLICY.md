@@ -1,8 +1,8 @@
 # NotiCatch Privacy Policy
-_Last updated: 4 November 2026 — Effective for NotiCatch by Team Risk Made_
+_Last updated: 12 November 2026 — Effective for NotiCatch by Team Risk Made_
 
 **1. Summary.**
-NotiCatch ("we", "our", or "the app"), developed by Team Risk Made, is an offline notification history and deleted message recovery utility for Android. We respect your privacy: everything captured stays strictly on your device. The release application does not request internet access (`android.permission.INTERNET` is completely removed), contains no third-party analytics or tracking SDKs, displays no advertisements, and operates zero external servers.
+NotiCatch ("we", "our", or "the app"), developed by Team Risk Made, is a notification history and deleted message recovery utility for Android. We respect your privacy: **the notifications and messages NotiCatch captures never leave your device.** They are not uploaded, synced, or sent to us or anyone else. The app shows no advertisements, contains no analytics or tracking SDKs, and we operate no servers of our own. The app does have internet access (`android.permission.INTERNET`), used only for subscription verification and update checks, as described in Section 5.
 
 **2. Data Accessed & Notification Listener Service.**
 When you explicitly grant Notification Access (`android.permission.BIND_NOTIFICATION_LISTENER_SERVICE`) in Android settings, NotiCatch receives notification payloads posted by other apps on your device. This includes:
@@ -26,9 +26,13 @@ The collected notification data is processed solely for the following user-facin
 - PIN codes are hashed using cryptographic salt iterations and secured via the Android Keystore system.
 - Biometric authentication (fingerprint/face) utilizes Android's official `BiometricPrompt` API; biometric data is processed entirely by the device hardware and is never accessible to NotiCatch.
 
-**5. Data Sharing and Third-Party Transfer.**
-NotiCatch does not collect, sell, lease, or transmit your personal data to any external entity or third-party server.
-If you deliberately use the "Export" or "Backup" features, the resulting file is passed directly to Android's system share sheet, where you control the final destination.
+**5. Internet Use and Third-Party Services.**
+NotiCatch never transmits captured notification content. Internet access is used only for:
+
+- **Subscriptions (VIP).** Payments are processed by **Google Play Billing**. Subscription status is verified through **RevenueCat** (RevenueCat, Inc.), which receives an anonymous app-generated user ID, purchase/receipt details, app version and basic device information (such as OS version, country/store and IP address). RevenueCat never receives notification content. See RevenueCat's privacy policy: https://www.revenuecat.com/privacy
+- **Update checks.** The app asks **Google Play** (In-App Updates) whether a newer version exists, and may download a small public version file from **GitHub** (`raw.githubusercontent.com`) containing release notes. No identifiers are sent, but GitHub, like any web server, receives your IP address and standard request information.
+
+We do not sell, rent, or share personal data. If you deliberately use the "Export" or "Backup" features, the resulting file is passed directly to Android's system share sheet, where you control the final destination.
 
 **6. User Rights & Data Deletion.**
 You maintain absolute control over your data at all times:

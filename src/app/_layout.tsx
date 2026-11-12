@@ -127,6 +127,17 @@ function Shell() {
               }}
             />
             <Stack.Screen
+              name="settings/reliability"
+              options={{
+                headerShown: true,
+                title: 'Background protection',
+                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: colors.text,
+                headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 },
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
               name="settings/backup"
               options={{
                 headerShown: true,

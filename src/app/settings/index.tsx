@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, ScrollView, Switch, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
-import { configureCapture, deleteNotifications, openAccessSettings, openAppSettings, postTestNotification, queryNotifications } from '@/data/repository';
+import { configureCapture, deleteNotifications, getReliabilityStatus, openAccessSettings, openAppSettings, postTestNotification, queryNotifications } from '@/data/repository';
 import { CURRENT_APP_VERSION, checkForUpdate, openPlayStore, useUpdateModal } from '@/lib/appUpdate';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
@@ -22,6 +22,17 @@ export default function SettingsIndexScreen() {
   const notifyOnDeleted = useSettings((s) => s.notifyOnDeleted);
   const updateSettings = useSettings((s) => s.update);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [batteryRestricted, setBatteryRestricted] = useState(false);
+
+  useEffect(() => {
+    const refresh = () =>
+      void getReliabilityStatus().then((s) => setBatteryRestricted(!!s && !s.batteryUnrestricted));
+    refresh();
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleCheckUpdate = async () => {
     if (checkingUpdate) return;
@@ -36,7 +47,9 @@ export default function SettingsIndexScreen() {
           'You are up to date! 🎉',
           `NotiCatch v${res.currentVersion} is currently the latest version. Would you like to view the Google Play Store listing?`,
           () => {
-            void openPlayStore();
+            void openPlayStore().then((opened) => {
+              if (!opened) showAppToast('Could not open Google Play Store', 'error');
+            });
           },
           false,
           'Open Play Store',
@@ -167,6 +180,42 @@ export default function SettingsIndexScreen() {
           ) : null}
         </PressableBounce>
 
+        {/* Background protection: OEM battery savers are the #1 reason capture silently stops */}
+        {granted ? (
+          <PressableBounce
+            scaleTo={0.98}
+            onPress={() => router.push('/settings/reliability' as any)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              backgroundColor: batteryRestricted ? 'rgba(239, 68, 68, 0.12)' : '#2E323F',
+              borderWidth: 1,
+              borderColor: batteryRestricted ? 'rgba(239, 68, 68, 0.45)' : 'rgba(255,255,255,0.08)',
+              borderRadius: 14,
+              padding: 14,
+              marginBottom: 12,
+            }}
+          >
+            <Ionicons
+              name={batteryRestricted ? 'battery-dead-outline' : 'shield-checkmark-outline'}
+              size={22}
+              color={batteryRestricted ? '#EF4444' : '#0D9488'}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 14 }}>
+                Background Protection
+              </Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                {batteryRestricted
+                  ? 'Battery optimization may stop NotiCatch. Messages can be missed. Tap to fix.'
+                  : 'Keep NotiCatch running on Xiaomi, Samsung, OPPO, vivo & more.'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#7C8494" />
+          </PressableBounce>
+        ) : null}
+
         {/* Show on Notification Bar (matching Notisave screenshot) */}
         <View
           style={{
@@ -188,7 +237,7 @@ export default function SettingsIndexScreen() {
                 Show in Notification Bar
               </Text>
               <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                Display ongoing status with saved count in Android's notification shade (like Notisave).
+                Display ongoing status with saved count in Android's notification shade.
               </Text>
             </View>
           </View>
@@ -222,7 +271,7 @@ export default function SettingsIndexScreen() {
                 Deleted Message Alerts
               </Text>
               <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                Get notified immediately when someone deletes a message in WhatsApp, Messenger, etc.
+                Get notified immediately when someone deletes a message in your chat apps.
               </Text>
             </View>
           </View>

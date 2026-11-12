@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { showAppToast } from './CustomDialog';
 import { PressableBounce } from './PressableBounce';
 import { Text } from './ui';
 import {
   CURRENT_APP_VERSION,
-  openPlayStore,
+  formatVersion,
+  startUpdate,
   useUpdateModal,
 } from '@/lib/appUpdate';
 
@@ -17,11 +19,16 @@ export function AppUpdateModal() {
   const title = updateInfo.title || 'New Update Available! 🚀';
   const message =
     updateInfo.message ||
-    'নতুন আপডেট চলে এসেছে! আরও দারুণ ফিচার ও বাগ ফিক্স পেতে এখনই আপডেট করুন।';
+    'A new version of NotiCatch is available! Update now to get the latest features, performance improvements, and bug fixes.';
 
   const handleUpdate = async () => {
-    await openPlayStore(updateInfo.playStoreUrl, updateInfo.fallbackUrl);
-    if (!isForce) {
+    const result = await startUpdate(updateInfo);
+    if (result === 'failed') {
+      showAppToast('Could not open Google Play Store', 'error');
+    } else if (result === 'play' && !isForce) {
+      showAppToast('Downloading update… NotiCatch will restart when it is ready.');
+    }
+    if (!isForce || result === 'play') {
       hideModal();
     }
   };
@@ -121,7 +128,7 @@ export function AppUpdateModal() {
               }}
             >
               <Text style={{ fontSize: 12, fontFamily: 'Manrope_700Bold', color: '#2DD4BF' }}>
-                Latest v{updateInfo.latestVersion}
+                Latest {formatVersion(updateInfo.latestVersion)}
               </Text>
             </View>
           </View>

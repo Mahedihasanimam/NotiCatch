@@ -2,7 +2,7 @@
 
 **NotiCatch** (by **Team Risk Made**) is a high-performance, privacy-first Android application designed to automatically capture, organize, and safeguard your incoming notifications. It allows you to search historical notifications, recover sender-deleted messages, view attached media (photos & voice notes), and seamlessly jump directly into original conversations and emails with a single tap.
 
-All data remains **100% on your device** in a private local SQLite database. The production release holds **no internet permission**, contains no advertising or analytics SDKs, and never transmits your data to any external server.
+All captured notifications remain **on your device** in a private local SQLite database and are never uploaded. The app contains no advertising or analytics SDKs. Internet access is used only for subscription verification (Google Play Billing + RevenueCat) and update checks (Google Play In-App Updates, with a version file on GitHub as fallback).
 
 ---
 
@@ -10,7 +10,7 @@ All data remains **100% on your device** in a private local SQLite database. The
 
 ### 1. 💬 Grouped Messages & Smart Conversations
 - **Default Messages Landing:** When opening NotiCatch, users land immediately on the **Messages** screen.
-- **Unified Contact Conversations:** Messages from WhatsApp, Messenger, Teams, Telegram, and SMS are neatly grouped by contact/sender (1 row per contact instead of repeating duplicate notifications).
+- **Unified Contact Conversations:** Messages from chat apps (messengers, team chat, SMS) are neatly grouped by contact/sender (1 row per contact instead of repeating duplicate notifications).
 - **Accurate Count Badges:** Displays exact unread and total message counts for each sender.
 - **Latest Message Previews:** Always shows the latest message text and formatted timestamps.
 
@@ -31,7 +31,7 @@ All data remains **100% on your device** in a private local SQLite database. The
 - **Clean UI:** Redundant "Open App" or "Share" buttons have been removed in favor of intuitive direct-touch navigation.
 
 ### 5. 🛡️ 100% Local & Privacy-Focused
-- **No Internet Permission:** The release build strips the `android.permission.INTERNET` manifest permission entirely.
+- **Notification data never leaves the device:** Internet is used only for subscription verification and update checks. No notification content is ever transmitted.
 - **PIN & Biometric Security:** Salted and iterated SHA-256 PIN authentication backed by the Android Keystore, with fingerprint/face unlock and auto-lock timers.
 - **Notification Exclusions:** Block specific apps from being recorded via the "Block notifications" screen.
 - **Retention & Auto-Cleanup:** Automatically delete logs older than 7, 15, 30, or 90 days, with options to protect favorites and archived items.

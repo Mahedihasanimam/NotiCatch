@@ -150,19 +150,6 @@ class NotificationDb private constructor(context: Context) :
     val mediaType: String?,
   )
 
-  private fun cleanTitle(raw: String?): String {
-    if (raw.isNullOrBlank()) return ""
-    var t = raw.trim()
-    // Remove (N messages), (N new messages), (Nটি মেসেজ), etc.
-    t = t.replace(Regex("""\s*\(\d+\s*[^)]*\)"""), "").trim()
-    // If format is "Group: Sender", extract group part
-    val colonIdx = t.indexOf(':')
-    if (colonIdx > 0) {
-      t = t.substring(0, colonIdx).trim()
-    }
-    return t.lowercase()
-  }
-
   /** Marks the most recent message from contact/package as deleted. Returns DeletedMessageInfo if found. */
   fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long, deletionText: String? = null): DeletedMessageInfo? = synchronized(lock) {
     val db = writableDatabase
@@ -179,18 +166,8 @@ class NotificationDb private constructor(context: Context) :
       arrayOf(packageName, cutoff.toString()),
     )
 
-    val cleanTarget = cleanTitle(title)
-    val isGenericAppTitle = cleanTarget.isEmpty() ||
-      cleanTarget == "whatsapp" ||
-      cleanTarget == "হোয়াটসঅ্যাপ" ||
-      cleanTarget == "telegram" ||
-      cleanTarget == "messenger" ||
-      cleanTarget == "messages"
-
-    // Extract potential sender from deletion text (e.g. "Arif: This message was deleted")
-    val senderFromText = if (!deletionText.isNullOrEmpty() && deletionText.contains(':')) {
-      deletionText.substringBefore(':').trim().lowercase()
-    } else null
+    // Conversation + (for groups) sender the deletion refers to. See DeletionMatcher.
+    val target = DeletionMatcher.target(title, deletionText)
 
     var matchedId: Long? = null
     var matchedSenderTitle: String? = null
@@ -216,20 +193,8 @@ class NotificationDb private constructor(context: Context) :
           continue
         }
 
-        val candClean = cleanTitle(candTitle)
-
-        // 1. If notification has a specific contact/group title, match against candidate
-        val isMatch = if (!isGenericAppTitle) {
-          candClean == cleanTarget ||
-          (cleanTarget.isNotEmpty() && (candClean.contains(cleanTarget) || cleanTarget.contains(candClean))) ||
-          (senderFromText != null && (candClean.contains(senderFromText) || candSub.lowercase().contains(senderFromText) || candText.lowercase().contains(senderFromText)))
-        } else {
-          // 2. Generic title (e.g. "WhatsApp"): match the most recent message within 15 minutes
-          val candPostTime = c.getLong(7)
-          (deletedAt - candPostTime) < 900_000L // 15 minutes
-        }
-
-        if (isMatch) {
+        val candPostTime = c.getLong(7)
+        if (DeletionMatcher.matches(target, candTitle, candText, candSub, deletedAt - candPostTime)) {
           matchedId = id
           matchedSenderTitle = candTitle.ifEmpty { title }
           matchedOrigText = candText

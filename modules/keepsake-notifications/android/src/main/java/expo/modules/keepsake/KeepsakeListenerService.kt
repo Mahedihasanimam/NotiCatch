@@ -42,6 +42,7 @@ class KeepsakeListenerService : NotificationListenerService() {
 
   override fun onListenerConnected() {
     super.onListenerConnected()
+    connected = true
     ReplyManager.serviceInstance = this
     runOnWorker {
       try {
@@ -58,6 +59,7 @@ class KeepsakeListenerService : NotificationListenerService() {
 
   override fun onListenerDisconnected() {
     super.onListenerDisconnected()
+    connected = false
     ChangeBus.emit("disconnected")
     // NOTE: NEVER call requestRebind here!
     // Calling requestRebind inside onListenerDisconnected causes an infinite connect-disconnect loop,
@@ -419,6 +421,10 @@ class KeepsakeListenerService : NotificationListenerService() {
     private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val CLEANUP_INTERVAL_MS = 6L * 60 * 60 * 1000
     @Volatile private var lastCleanup = 0L
+
+    /** True while the system has this listener bound (read by DeviceHealth). */
+    @Volatile var connected = false
+      private set
 
     val DELETION_PHRASES = setOf(
       "this message was deleted",

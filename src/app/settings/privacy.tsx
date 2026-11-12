@@ -121,7 +121,7 @@ export default function Privacy() {
                 color: '#2DD4BF',
               }}
             >
-              100% On-Device • No Internet Required
+              Your messages never leave this device
             </Text>
           </View>
 

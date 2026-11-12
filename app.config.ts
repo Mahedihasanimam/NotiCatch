@@ -9,10 +9,8 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
-  ios: {
-    bundleIdentifier: 'com.mehedi.noticatch.app',
-    supportsTablet: false,
-  },
+  // Android only: iOS has no API for reading other apps' notifications.
+  platforms: ['android'],
   android: {
     package: 'com.mehedi.noticatch.app',
     versionCode: 3,
@@ -49,8 +47,15 @@ const config: ExpoConfig = {
           targetSdkVersion: 36,
           buildToolsVersion: '37.0.0',
           minSdkVersion: 26,
-          enableMinifyInReleaseBuilds: false,
-          enableShrinkResourcesInReleaseBuilds: false,
+          // R8: smaller APK/AAB (matters on slow mobile data). Native libs ship their own
+          // consumer rules; the extra keeps below are belt-and-braces for reflection-heavy SDKs.
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+          extraProguardRules: [
+            '-keep class com.revenuecat.purchases.** { *; }',
+            '-keep class expo.modules.keepsake.** { *; }',
+            '-keep class com.google.android.play.core.** { *; }',
+          ].join('\n'),
           useLegacyPackaging: false,
         },
       },

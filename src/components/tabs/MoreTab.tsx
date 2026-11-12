@@ -60,7 +60,9 @@ export function MoreTab() {
           'You are up to date! 🎉',
           `NotiCatch v${res.currentVersion} is currently the latest version. Would you like to view the Google Play Store listing?`,
           () => {
-            void openPlayStore();
+            void openPlayStore().then((opened) => {
+              if (!opened) showAppToast('Could not open Google Play Store', 'error');
+            });
           },
           false,
           'Open Play Store',

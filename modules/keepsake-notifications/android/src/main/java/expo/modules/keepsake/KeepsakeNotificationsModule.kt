@@ -15,6 +15,7 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONArray
@@ -274,6 +275,28 @@ class KeepsakeNotificationsModule : Module() {
         true
       } catch (_: Exception) {
         false
+      }
+    }
+
+    // ---- background reliability (OEM battery killers) --------------------------------------
+    AsyncFunction("getReliabilityStatus") { DeviceHealth.status(context).toString() }
+    AsyncFunction("openBatterySettings") { DeviceHealth.openBatterySettings(context) }
+    AsyncFunction("openAutostartSettings") { DeviceHealth.openAutostartSettings(context) }
+
+    // ---- Google Play In-App Updates ----------------------------------------------------------
+    AsyncFunction("checkPlayUpdate") { promise: Promise ->
+      PlayUpdates.check(
+        context,
+        onResult = { promise.resolve(it.toString()) },
+        onError = { promise.reject("ERR_PLAY_UPDATE", it, null) },
+      )
+    }
+    AsyncFunction("startPlayUpdate") { immediate: Boolean, promise: Promise ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        promise.resolve(false)
+      } else {
+        PlayUpdates.start(activity, immediate) { promise.resolve(it) }
       }
     }
   }

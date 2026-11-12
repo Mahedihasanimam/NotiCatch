@@ -3,9 +3,9 @@
   "versionCode": 3,
   "forceUpdate": false,
   "title": "New Update Available! 🚀",
-  "message": "নতুন আপডেট চলে এসেছে! আরও দারুণ ফিচার ও বাগ ফিক্স পেতে এখনই আপডেট করুন।",
+  "message": "A new version of NotiCatch is available! Update now to get the latest features, performance improvements, and bug fixes.",
   "releaseNotes": "• Added Pin Important Conversations 📌\n• Instant Deleted Message alerts ⚠️\n• Fixed chat details avatar issue\n• Performance optimizations & bug fixes",
-  "playStoreUrl": "market://details?id=com.mehedihasan.noticatch.app",
-  "fallbackUrl": "https://play.google.com/store/apps/details?id=com.mehedihasan.noticatch.app"
+  "playStoreUrl": "market://details?id=com.mehedi.noticatch.app",
+  "fallbackUrl": "https://play.google.com/store/apps/details?id=com.mehedi.noticatch.app"
 }
 

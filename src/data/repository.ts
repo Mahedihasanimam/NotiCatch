@@ -46,6 +46,52 @@ export const updateStatusNotification = (): Promise<void> => (getNative() ? requ
 export const requestNotificationPermission = (): Promise<void> => (getNative() ? requireNative().requestNotificationPermission() : Promise.resolve());
 export const configureCapture = (c: CaptureConfig): Promise<void> => requireNative().configure(JSON.stringify(c));
 
+// ------------------------------------------------------------------ background reliability
+
+export type DeviceBrand = 'xiaomi' | 'samsung' | 'oppo' | 'vivo' | 'huawei' | 'transsion' | 'other';
+
+export interface ReliabilityStatus {
+  brand: DeviceBrand;
+  manufacturer: string;
+  sdk: number;
+  /** false = Android may stop the listener to save battery */
+  batteryUnrestricted: boolean;
+  listenerConnected: boolean;
+  lastCapturedAt: number | null;
+  hasAutostartScreen: boolean;
+}
+
+export async function getReliabilityStatus(): Promise<ReliabilityStatus | null> {
+  const native = getNative();
+  if (!native) return null;
+  try {
+    return JSON.parse(await native.getReliabilityStatus()) as ReliabilityStatus;
+  } catch {
+    return null;
+  }
+}
+export const openBatterySettings = async (): Promise<boolean> => (getNative() ? requireNative().openBatterySettings() : false);
+export const openAutostartSettings = async (): Promise<boolean> => (getNative() ? requireNative().openAutostartSettings() : false);
+
+// ------------------------------------------------------------------ Google Play in-app updates
+
+export interface PlayUpdateInfo {
+  available: boolean;
+  availableVersionCode: number;
+  immediateAllowed: boolean;
+  flexibleAllowed: boolean;
+  stalenessDays: number | null;
+  priority: number;
+  downloaded: boolean;
+}
+
+/** Throws when Play can't answer (dev build, sideloaded, no Play Store). */
+export async function checkPlayUpdate(): Promise<PlayUpdateInfo> {
+  return JSON.parse(await requireNative().checkPlayUpdate()) as PlayUpdateInfo;
+}
+export const startPlayUpdate = async (immediate: boolean): Promise<boolean> =>
+  getNative() ? requireNative().startPlayUpdate(immediate) : false;
+
 export function subscribeToChanges(cb: (type: ChangeType) => void): () => void {
   const native = getNative();
   if (!native) return () => undefined;

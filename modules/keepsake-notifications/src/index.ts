@@ -44,6 +44,11 @@ declare class KeepsakeNotificationsModule extends NativeModule<Events> {
   playAudio(filePath: string): Promise<boolean>;
   stopAudio(): Promise<boolean>;
   playPreviewTone(): Promise<boolean>;
+  getReliabilityStatus(): Promise<string>;
+  openBatterySettings(): Promise<boolean>;
+  openAutostartSettings(): Promise<boolean>;
+  checkPlayUpdate(): Promise<string>;
+  startPlayUpdate(immediate: boolean): Promise<boolean>;
 }
 
 export type KeepsakeNativeModule = KeepsakeNotificationsModule;
