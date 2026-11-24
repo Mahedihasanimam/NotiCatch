@@ -12,7 +12,7 @@
 8
 9    <!-- Needed to resolve launcher apps (names + icons) without QUERY_ALL_PACKAGES. -->
 10    <queries>
-10-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:6:3-11:13
+10-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:6:3-21:13
 11        <intent>
 11-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:7:5-10:14
 12            <action android:name="android.intent.action.MAIN" />
@@ -23,39 +23,67 @@
 14-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:9:7-67
 14-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:9:17-64
 15        </intent>
-16    </queries>
-17
-18    <application>
-18-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:13:3-30:17
-19
-20        <!--
-21      Notification access is granted by the user in system settings.
-22      BIND_NOTIFICATION_LISTENER_SERVICE guarantees only the system can bind to this service.
-23        -->
-24        <service
-24-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:18:5-29:15
-25            android:name="expo.modules.keepsake.KeepsakeListenerService"
-25-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:19:7-67
-26            android:exported="true"
-26-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:20:7-30
-27            android:label="@string/app_name"
-27-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:21:7-39
-28            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" >
-28-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:22:7-81
-29            <intent-filter>
-29-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:23:7-25:23
-30                <action android:name="android.service.notification.NotificationListenerService" />
-30-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:24:9-91
-30-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:24:17-88
-31            </intent-filter>
-32
-33            <meta-data
-33-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:26:7-28:65
-34                android:name="android.service.notification.default_filter_types"
-34-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:27:9-73
-35                android:value="conversations|alerting|ongoing|silent" />
-35-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:28:9-62
-36        </service>
-37    </application>
-38
-39</manifest>
+16        <!-- OEM autostart / battery screens opened by DeviceHealth.kt -->
+17        <package android:name="com.miui.securitycenter" />
+17-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:12:5-55
+17-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:12:14-52
+18        <package android:name="com.coloros.safecenter" />
+18-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:13:5-54
+18-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:13:14-51
+19        <package android:name="com.oplus.safecenter" />
+19-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:14:5-52
+19-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:14:14-49
+20        <package android:name="com.oppo.safe" />
+20-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:15:5-45
+20-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:15:14-42
+21        <package android:name="com.vivo.permissionmanager" />
+21-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:16:5-58
+21-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:16:14-55
+22        <package android:name="com.iqoo.secure" />
+22-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:17:5-47
+22-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:17:14-44
+23        <package android:name="com.huawei.systemmanager" />
+23-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:18:5-56
+23-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:18:14-53
+24        <package android:name="com.samsung.android.lool" />
+24-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:19:5-56
+24-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:19:14-53
+25        <package android:name="com.transsion.phonemaster" />
+25-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:20:5-57
+25-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:20:14-54
+26    </queries>
+27
+28    <application>
+28-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:23:3-40:17
+29
+30        <!--
+31      Notification access is granted by the user in system settings.
+32      BIND_NOTIFICATION_LISTENER_SERVICE guarantees only the system can bind to this service.
+33        -->
+34        <service
+34-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:28:5-39:15
+35            android:name="expo.modules.keepsake.KeepsakeListenerService"
+35-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:29:7-67
+36            android:exported="true"
+36-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:30:7-30
+37            android:label="@string/app_name"
+37-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:31:7-39
+38            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" >
+38-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:32:7-81
+39            <intent-filter>
+39-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:33:7-35:23
+40                <action android:name="android.service.notification.NotificationListenerService" />
+40-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:34:9-91
+40-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:34:17-88
+41            </intent-filter>
+42
+43            <meta-data
+43-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:36:7-38:65
+44                android:name="android.service.notification.default_filter_types"
+44-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:37:9-73
+45                android:value="conversations|alerting|ongoing|silent" />
+45-->/Users/mehedihasan/Downloads/nodelog/modules/keepsake-notifications/android/src/main/AndroidManifest.xml:38:9-62
+46        </service>
+47    </application>
+48
+49</manifest>

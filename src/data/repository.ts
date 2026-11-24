@@ -38,7 +38,6 @@ const ids = (list: number[]) => JSON.stringify(list);
 
 export const isNativeAvailable = (): boolean => getNative() !== null;
 export const isAccessGranted = async (): Promise<boolean> => (getNative() ? requireNative().isAccessGranted() : false);
-export const postTestNotification = async (): Promise<boolean> => (getNative() ? requireNative().postTestNotification() : false);
 export const openAccessSettings = (): Promise<void> => requireNative().openAccessSettings();
 export const openAppSettings = (): Promise<void> => requireNative().openAppSettings();
 export const requestRebind = (): Promise<void> => requireNative().requestRebind();

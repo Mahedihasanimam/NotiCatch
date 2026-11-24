@@ -44,6 +44,8 @@ class KeepsakeListenerService : NotificationListenerService() {
     super.onListenerConnected()
     connected = true
     ReplyManager.serviceInstance = this
+    // Make sure the watchdog exists even if the user never opens the app after a reboot/update.
+    ListenerKeeper.scheduleWatchdog(this)
     runOnWorker {
       try {
         // Recover anything posted while we were disconnected (reboot, rebind, revoked-then-granted).
@@ -104,7 +106,40 @@ class KeepsakeListenerService : NotificationListenerService() {
     super.onDestroy()
   }
 
-  /** @return true if a new row was stored. */
+  /** One entry of a MessagingStyle notification (WhatsApp, Telegram, Messenger, Signal, SMS…). */
+  private data class ChatMsg(val text: String?, val time: Long?, val sender: String?, val type: String?, val hasUri: Boolean)
+
+  private fun readMessages(x: Bundle): List<ChatMsg> {
+    val arr = try { x.getParcelableArray(Notification.EXTRA_MESSAGES) } catch (_: Exception) { null } ?: return emptyList()
+    val now = System.currentTimeMillis()
+    return arr.mapNotNull { p ->
+      val b = p as? Bundle ?: return@mapNotNull null
+      val time = b.getLong("time", 0L).takeIf { it > MIN_PLAUSIBLE_TIME && it < now + DAY_MS }
+      var sender = b.getCharSequence("sender")?.toString()?.trim()
+      if (sender.isNullOrEmpty() && Build.VERSION.SDK_INT >= 28) {
+        sender = try {
+          @Suppress("DEPRECATION")
+          (b.getParcelable("sender_person") as? android.app.Person)?.name?.toString()?.trim()
+        } catch (_: Exception) { null }
+      }
+      ChatMsg(
+        text = b.getCharSequence("text")?.toString()?.trim(),
+        time = time,
+        sender = sender?.ifEmpty { null },
+        type = b.getString("type"),
+        hasUri = b.containsKey("uri"),
+      )
+    }
+  }
+
+  private fun displayText(m: ChatMsg): String? = when {
+    !m.text.isNullOrEmpty() -> m.text
+    m.type?.startsWith("audio/") == true -> "🎤 Voice note"
+    m.type?.startsWith("image/") == true || m.hasUri -> "📷 Photo"
+    else -> null
+  }
+
+  /** @return true if anything was stored or changed. */
   private fun capture(sbn: StatusBarNotification): Boolean {
     val prefs = CapturePrefs(this)
     if (!prefs.captureEnabled) return false
@@ -112,11 +147,10 @@ class KeepsakeListenerService : NotificationListenerService() {
     val n = sbn.notification ?: return false
     val x: Bundle = n.extras ?: Bundle()
 
-    val isTestNotif = x.getBoolean("expo.modules.keepsake.IS_TEST", false)
-    if (!isTestNotif && (pkg == packageName || prefs.excluded.contains(pkg))) return false
+    if (pkg == packageName || prefs.excluded.contains(pkg)) return false
 
     val ongoing = n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
-    if (ongoing && !prefs.captureOngoing && !isTestNotif) return false
+    if (ongoing && !prefs.captureOngoing) return false
 
     var title = (x.getCharSequence(Notification.EXTRA_TITLE) ?: x.getCharSequence(Notification.EXTRA_TITLE_BIG))?.toString()?.trim()
     var text = x.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
@@ -128,36 +162,15 @@ class KeepsakeListenerService : NotificationListenerService() {
       text = x.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n") { it.toString() }?.trim()
     }
 
-    // 2. MessagingStyle extraction (WhatsApp, Telegram, Google Messages, Signal)
-    if (text.isNullOrEmpty()) {
-      try {
-        val messages = x.getParcelableArray(Notification.EXTRA_MESSAGES)
-        if (messages != null && messages.isNotEmpty()) {
-          val lastMsg = messages.lastOrNull()
-          if (lastMsg is Bundle) {
-            val msgText = lastMsg.getCharSequence("text")?.toString()?.trim()
-            val msgType = lastMsg.getString("type")
-            val hasUri = lastMsg.containsKey("uri")
-
-            if (!msgText.isNullOrEmpty()) {
-              text = msgText
-            } else if (msgType?.startsWith("image/") == true || hasUri) {
-              text = "📷 Photo"
-            } else if (msgType?.startsWith("audio/") == true) {
-              text = "🎤 Voice note"
-            }
-
-            if (title.isNullOrEmpty()) {
-              val sender = lastMsg.getCharSequence("sender")?.toString()?.trim()
-              if (!sender.isNullOrEmpty()) {
-                title = sender
-              }
-            }
-          }
-        }
-      } catch (e: Exception) {
-        Log.w(TAG, "EXTRA_MESSAGES extraction failed", e)
-      }
+    // 2. MessagingStyle: read every message in the stack, not just the newest one.
+    val messages = readMessages(x)
+    val convTitle = x.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()?.trim()
+    val isGroup = x.getBoolean("android.isGroupConversation", false) ||
+      (!convTitle.isNullOrEmpty() && messages.mapNotNull { it.sender }.distinct().size > 1)
+    val last = messages.lastOrNull()
+    if (last != null) {
+      if (title.isNullOrEmpty()) title = last.sender
+      if (text.isNullOrEmpty()) text = displayText(last)
     }
 
     // Check if notification carries a picture but text is still empty (common in WhatsApp, Telegram, etc.)
@@ -172,9 +185,7 @@ class KeepsakeListenerService : NotificationListenerService() {
     }
 
     // 3. Fallback to conversation title or ticker text
-    if (title.isNullOrEmpty()) {
-      title = x.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()?.trim()
-    }
+    if (title.isNullOrEmpty()) title = convTitle
     if (text.isNullOrEmpty()) {
       text = x.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString()?.trim()
     }
@@ -197,7 +208,7 @@ class KeepsakeListenerService : NotificationListenerService() {
 
     // Skip empty group summary headers only if they carry no actual message content
     val summary = n.flags and Notification.FLAG_GROUP_SUMMARY != 0
-    if (summary && prefs.skipGroupSummary && !isTestNotif && text.isNullOrEmpty() && big.isNullOrEmpty()) {
+    if (summary && prefs.skipGroupSummary && text.isNullOrEmpty() && big.isNullOrEmpty()) {
       return false
     }
 
@@ -207,23 +218,95 @@ class KeepsakeListenerService : NotificationListenerService() {
     // Cache direct reply action for inline replying from the app
     ReplyManager.registerAction(sbn, title)
 
-    // Check for message deletion (e.g. WhatsApp "This message was deleted")
-    val isDel = isDeletedMessage(text) || isDeletedMessage(big)
-    if (isDel) {
-      val deletedInfo = NotificationDb.get(this).markLastMessageDeleted(pkg, title, sbn.postTime, text ?: big)
-      if (deletedInfo != null) {
-        DeletedAlertManager.notifyDeleted(this, deletedInfo)
-        // Original message was identified and marked as deleted!
-        // Do not insert a duplicate blank "This message was deleted" item into the chat.
-        ChangeBus.emit("posted")
-        return true
+    val db = NotificationDb.get(this)
+    val appName = AppCatalog.label(packageManager, pkg)
+    val baseTitle = title
+    var changed = false
+
+    // Group chats titled "Group: Sender" carry the NEWEST sender; older messages need their own.
+    val titleSenderIdx = baseTitle?.indexOf(':') ?: -1
+    val titleHasSender = isGroup && titleSenderIdx > 0
+    fun titleFor(m: ChatMsg): String? =
+      if (titleHasSender && m.sender != null) "${baseTitle!!.substring(0, titleSenderIdx).trim()}: ${m.sender}" else baseTitle
+    fun textFor(m: ChatMsg): String? {
+      val body = displayText(m) ?: return null
+      return if (isGroup && !titleHasSender && m.sender != null) "${m.sender}: $body" else body
+    }
+
+    // ---- Deleted messages ("This message was deleted"), each handled exactly once, so a
+    // re-posted or re-synced notification never marks another (innocent) message as deleted.
+    fun handleDeletion(eventKey: String, delTitle: String?, delText: String, msgTime: Long?) {
+      if (!db.recordDeletionEvent("$pkg|${sbn.key}|$eventKey", System.currentTimeMillis())) return
+      changed = true
+      val info = db.markLastMessageDeleted(pkg, delTitle, sbn.postTime, delText, msgTime)
+      if (info != null) {
+        DeletedAlertManager.notifyDeleted(this, info)
+        return
       }
+      // Original was never captured: keep a visible "deleted" marker in the chat.
+      db.insertCaptured(
+        NotificationDb.Captured(
+          sbnKey = sbn.key, packageName = pkg, appName = appName,
+          title = delTitle, text = delText, bigText = null, subText = sub?.ifEmpty { null },
+          category = n.category, channelId = n.channelId, groupKey = sbn.groupKey,
+          isGroupSummary = summary, isOngoing = ongoing, postedAt = msgTime ?: sbn.postTime,
+          contentHash = Hashing.contentHash(pkg, delTitle, delText, eventKey, null),
+          isDeleted = true, deletedAt = sbn.postTime,
+        ),
+      )
+    }
+
+    val newestIsDeletion: Boolean
+    if (messages.isNotEmpty()) {
+      messages.forEach { m ->
+        if (DeletionMatcher.isDeletionText(m.text)) {
+          handleDeletion("${m.time ?: n.`when`}|${m.sender.orEmpty()}", titleFor(m), textFor(m) ?: m.text.orEmpty(), m.time)
+        }
+      }
+      newestIsDeletion = DeletionMatcher.isDeletionText(last?.text)
+    } else {
+      val delText = listOf(text, big).firstOrNull { DeletionMatcher.isDeletionText(it) }
+      if (delText != null) handleDeletion("${n.`when`}|${DeletionMatcher.normalize(delText)}", baseTitle, delText, null)
+      newestIsDeletion = delText != null
+    }
+
+    // ---- Older messages of the stack (a burst of messages arrives in ONE notification update;
+    // only the newest one is in EXTRA_TEXT, the rest were previously lost).
+    messages.dropLast(1).forEach { m ->
+      val t = m.time ?: return@forEach
+      if (DeletionMatcher.isDeletionText(m.text)) return@forEach
+      val mText = textFor(m) ?: return@forEach
+      val mTitle = titleFor(m)
+      val stored = db.insertCaptured(
+        NotificationDb.Captured(
+          sbnKey = sbn.key, packageName = pkg, appName = appName,
+          title = mTitle, text = mText, bigText = null, subText = sub?.ifEmpty { null },
+          category = n.category, channelId = n.channelId, groupKey = sbn.groupKey,
+          isGroupSummary = false, isOngoing = ongoing, postedAt = t,
+          contentHash = Hashing.contentHash(pkg, mTitle, mText, null, sub),
+          mediaType = when {
+            m.type?.startsWith("audio/") == true -> "audio"
+            m.type?.startsWith("image/") == true || m.hasUri -> "image"
+            else -> null
+          },
+          msgTime = t,
+        ),
+      )
+      if (stored) changed = true
+    }
+
+    if (newestIsDeletion) return changed
+
+    // ---- Newest message / ordinary notification.
+    val lastTime = last?.time
+    if (last != null && lastTime != null) {
+      // Same shape as the older messages so later re-posts de-duplicate exactly.
+      textFor(last)?.let { text = it }
+      title = titleFor(last)
     }
 
     // Try extracting genuine media (photo or audio) from the notification
     val media = extractNotificationMedia(n, x, pkg)
-    val mediaPath = media?.path
-    val mediaType = media?.type
 
     // Extract sender avatar / profile picture (EXTRA_LARGE_ICON)
     val avatarPath = extractNotificationAvatar(n, x, pkg)
@@ -231,7 +314,7 @@ class KeepsakeListenerService : NotificationListenerService() {
     val record = NotificationDb.Captured(
       sbnKey = sbn.key,
       packageName = pkg,
-      appName = AppCatalog.label(packageManager, pkg),
+      appName = appName,
       title = title?.ifEmpty { null },
       text = text?.ifEmpty { null },
       bigText = big?.takeIf { it.isNotEmpty() && it != text },
@@ -241,26 +324,14 @@ class KeepsakeListenerService : NotificationListenerService() {
       groupKey = sbn.groupKey,
       isGroupSummary = summary,
       isOngoing = ongoing,
-      postedAt = sbn.postTime,
+      postedAt = lastTime ?: sbn.postTime,
       contentHash = Hashing.contentHash(pkg, title, text, big, sub),
-      mediaPath = mediaPath,
-      mediaType = mediaType,
-      isDeleted = isDel,
-      deletedAt = if (isDel) sbn.postTime else null,
+      mediaPath = media?.path,
+      mediaType = media?.type,
       avatarPath = avatarPath,
+      msgTime = lastTime,
     )
-    return NotificationDb.get(this).insertCaptured(record)
-  }
-
-  private fun isDeletedMessage(text: String?): Boolean {
-    if (text.isNullOrEmpty()) return false
-    val lower = text.trim().lowercase()
-    return DELETION_PHRASES.any { lower.contains(it) } ||
-      (lower.contains("message") && lower.contains("deleted")) ||
-      (lower.contains("মুছে") && (lower.contains("মেসেজ") || lower.contains("বার্তা") || lower.contains("ফেলা") || lower.contains("দেওয়া"))) ||
-      (lower.contains("ডিলিট") && (lower.contains("মেসেজ") || lower.contains("বার্তা") || lower.contains("করা"))) ||
-      lower.contains("this message was deleted") ||
-      lower.contains("message was deleted")
+    return db.insertCaptured(record) || changed
   }
 
   private fun maybeCleanup(force: Boolean) {
@@ -426,27 +497,7 @@ class KeepsakeListenerService : NotificationListenerService() {
     @Volatile var connected = false
       private set
 
-    val DELETION_PHRASES = setOf(
-      "this message was deleted",
-      "this message was deleted by sender",
-      "you deleted this message",
-      "message was deleted",
-      "message deleted",
-      "এই মেসেজটি মুছে ফেলা হয়েছে",
-      "এই বার্তাটি মুছে ফেলা হয়েছে",
-      "মেসেজ মুছে ফেলা হয়েছে",
-      "বার্তা মুছে ফেলা হয়েছে",
-      "यह संदेश हटा दिया गया था",
-      "यह संदेश हटा दिया गया है",
-      "este mensaje fue eliminado",
-      "ce message a été supprimé",
-      "diese nachricht wurde gelöscht",
-      "تم حذف هذه الرسالة",
-      "esta mensagem foi apagada",
-      "pesan ini telah dihapus",
-      "bu mesaj silindi",
-      "сообщение удалено",
-      "questo messaggio è stato eliminato",
-    )
+    /** Message times before 2010 are bogus (some apps send 0 or seconds). */
+    private const val MIN_PLAUSIBLE_TIME = 1_262_304_000_000L
   }
 }

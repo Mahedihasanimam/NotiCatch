@@ -40,6 +40,12 @@ class NotificationDb private constructor(context: Context) :
     val db = writableDatabase
     db.beginTransaction()
     try {
+      if (r.msgTime != null) {
+        val inserted = insertMessage(db, r)
+        db.setTransactionSuccessful()
+        return inserted
+      }
+
       // 1. Exact content hash check (regardless of removed_at, don't insert identical notification)
       val hashDup = db.rawQuery(
         "SELECT 1 FROM notifications WHERE sbn_key = ? AND content_hash = ? LIMIT 1",
@@ -125,6 +131,7 @@ class NotificationDb private constructor(context: Context) :
         if (r.mediaPath != null) put("media_path", r.mediaPath)
         if (r.mediaType != null) put("media_type", r.mediaType)
         if (r.avatarPath != null) put("avatar_path", r.avatarPath)
+        r.msgTime?.let { put("msg_time", it as Long) }
         put("created_at", System.currentTimeMillis())
       }
       db.insertOrThrow("notifications", null, v)
@@ -133,6 +140,82 @@ class NotificationDb private constructor(context: Context) :
     } finally {
       db.endTransaction()
     }
+  }
+
+  /**
+   * Chat message with a MessagingStyle timestamp. The same message re-appears in every re-post of
+   * the conversation notification, so it is identified by (app, notification key, message time)
+   * instead of by text — two genuine "ok" messages sent a minute apart are both kept.
+   * Must be called inside the transaction opened by [insertCaptured].
+   */
+  private fun insertMessage(db: SQLiteDatabase, r: Captured): Boolean {
+    val t = r.msgTime!!.toString()
+
+    fun fillMissingMedia(id: Long, media: String?, avatar: String?): Boolean {
+      val cv = ContentValues()
+      if (media == null && r.mediaPath != null) { cv.put("media_path", r.mediaPath); cv.put("media_type", r.mediaType) }
+      if (avatar == null && r.avatarPath != null) cv.put("avatar_path", r.avatarPath)
+      if (cv.size() == 0) return false
+      return db.update("notifications", cv, "id = ?", arrayOf(id.toString())) > 0
+    }
+
+    db.rawQuery(
+      "SELECT id, media_path, avatar_path FROM notifications WHERE package_name = ? AND sbn_key = ? AND msg_time = ? LIMIT 1",
+      arrayOf(r.packageName, r.sbnKey, t),
+    ).use { c ->
+      if (c.moveToFirst()) {
+        return fillMissingMedia(c.getLong(0), if (c.isNull(1)) null else c.getString(1), if (c.isNull(2)) null else c.getString(2))
+      }
+    }
+
+    // Row stored by an older app version (no msg_time yet): same text in the same chat within
+    // 2 minutes. Adopt it so later re-posts match exactly.
+    db.rawQuery(
+      """
+      SELECT id, media_path, avatar_path FROM notifications
+      WHERE package_name = ? AND msg_time IS NULL
+        AND COALESCE(title, '') = ? AND COALESCE(text, '') = ?
+        AND posted_at BETWEEN CAST(? AS INTEGER) - 120000 AND CAST(? AS INTEGER) + 120000
+      LIMIT 1
+      """,
+      arrayOf(r.packageName, r.title ?: "", r.text ?: "", t, t),
+    ).use { c ->
+      if (c.moveToFirst()) {
+        val id = c.getLong(0)
+        db.update("notifications", ContentValues().apply { put("msg_time", r.msgTime as Long) }, "id = ?", arrayOf(id.toString()))
+        return fillMissingMedia(id, if (c.isNull(1)) null else c.getString(1), if (c.isNull(2)) null else c.getString(2))
+      }
+    }
+
+    db.insertOrThrow("notifications", null, ContentValues().apply {
+      put("sbn_key", r.sbnKey); put("package_name", r.packageName); put("app_name", r.appName)
+      put("title", r.title); put("text", r.text); put("big_text", r.bigText); put("sub_text", r.subText)
+      put("category", r.category); put("channel_id", r.channelId); put("group_key", r.groupKey)
+      put("is_group_summary", if (r.isGroupSummary) 1 else 0)
+      put("is_ongoing", if (r.isOngoing) 1 else 0)
+      put("posted_at", r.postedAt); put("content_hash", r.contentHash)
+      put("is_deleted", 0)
+      if (r.mediaPath != null) put("media_path", r.mediaPath)
+      if (r.mediaType != null) put("media_type", r.mediaType)
+      if (r.avatarPath != null) put("avatar_path", r.avatarPath)
+      put("msg_time", r.msgTime as Long)
+      put("created_at", System.currentTimeMillis())
+    })
+    return true
+  }
+
+  /**
+   * Remembers that a deletion was handled. Returns false if it was already handled, so a
+   * re-posted / re-synced "This message was deleted" never marks a second (innocent) message.
+   */
+  fun recordDeletionEvent(key: String, now: Long): Boolean = synchronized(lock) {
+    val db = writableDatabase
+    db.delete("deletion_events", "created_at < ?", arrayOf((now - 7 * 86_400_000L).toString()))
+    db.insertWithOnConflict(
+      "deletion_events", null,
+      ContentValues().apply { put("event_key", key); put("created_at", now) },
+      SQLiteDatabase.CONFLICT_IGNORE,
+    ) != -1L
   }
 
   /** The record is kept; only the removal timestamp/reason is stored. */
@@ -150,20 +233,34 @@ class NotificationDb private constructor(context: Context) :
     val mediaType: String?,
   )
 
-  /** Marks the most recent message from contact/package as deleted. Returns DeletedMessageInfo if found. */
-  fun markLastMessageDeleted(packageName: String, title: String?, deletedAt: Long, deletionText: String? = null): DeletedMessageInfo? = synchronized(lock) {
+  /**
+   * Marks the stored message that a deletion placeholder refers to. When the chat app kept the
+   * original message time ([msgTime], from MessagingStyle) the message at that time is chosen;
+   * otherwise the newest matching message that is not newer than the deletion.
+   */
+  fun markLastMessageDeleted(
+    packageName: String,
+    title: String?,
+    deletedAt: Long,
+    deletionText: String? = null,
+    msgTime: Long? = null,
+  ): DeletedMessageInfo? = synchronized(lock) {
     val db = writableDatabase
-    val cutoff = deletedAt - 86_400_000L // within 24 hours
+    val ref = msgTime ?: deletedAt
+    val cutoff = ref - 86_400_000L // within 24 hours
 
+    // Closest-in-time first. Messages posted after the deleted one can never be it.
     val cursor = db.rawQuery(
       """
-      SELECT id, title, text, big_text, app_name, media_type, sub_text, posted_at
+      SELECT id, title, text, big_text, app_name, media_type, sub_text, COALESCE(msg_time, posted_at) AS t
       FROM notifications
-      WHERE package_name = ? AND is_deleted = 0 AND posted_at >= ?
-      ORDER BY posted_at DESC
+      WHERE package_name = ? AND is_deleted = 0
+        AND COALESCE(msg_time, posted_at) >= CAST(? AS INTEGER)
+        AND COALESCE(msg_time, posted_at) <= CAST(? AS INTEGER) + 60000
+      ORDER BY ABS(COALESCE(msg_time, posted_at) - CAST(? AS INTEGER)) ASC, id DESC
       LIMIT 50
       """,
-      arrayOf(packageName, cutoff.toString()),
+      arrayOf(packageName, cutoff.toString(), ref.toString(), ref.toString()),
     )
 
     // Conversation + (for groups) sender the deletion refers to. See DeletionMatcher.
@@ -185,16 +282,10 @@ class NotificationDb private constructor(context: Context) :
         val candSub = if (c.isNull(6)) "" else c.getString(6)
 
         // Skip candidate if its text is itself a deletion phrase (don't mark a deletion placeholder as deleted)
-        val candLower = candText.lowercase()
-        if (candLower.contains("this message was deleted") ||
-            candLower.contains("message was deleted") ||
-            candLower.contains("মুছে ফেলা হয়েছে") ||
-            candLower.contains("deleted this message")) {
-          continue
-        }
+        if (DeletionMatcher.isDeletionText(candText)) continue
 
-        val candPostTime = c.getLong(7)
-        if (DeletionMatcher.matches(target, candTitle, candText, candSub, deletedAt - candPostTime)) {
+        val candTime = c.getLong(7)
+        if (DeletionMatcher.matches(target, candTitle, candText, candSub, (ref - candTime).coerceAtLeast(0))) {
           matchedId = id
           matchedSenderTitle = candTitle.ifEmpty { title }
           matchedOrigText = candText
@@ -493,6 +584,8 @@ class NotificationDb private constructor(context: Context) :
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
     val avatarPath: String? = null,
+    /** MessagingStyle message time; when set, de-duplication is exact on (app, chat, text, time). */
+    val msgTime: Long? = null,
   )
 
   fun sanitizeBadAvatars() = synchronized(lock) {
@@ -525,7 +618,7 @@ class NotificationDb private constructor(context: Context) :
 
   companion object {
     const val DB_NAME = "keepsake_notifications.db"
-    const val DB_VERSION = 4
+    const val DB_VERSION = 5
 
     /** Version -> statements. Never edit a released entry; append a new version instead. */
     val MIGRATIONS: Map<Int, List<String>> = mapOf(
@@ -564,6 +657,13 @@ class NotificationDb private constructor(context: Context) :
       4 to listOf(
         "ALTER TABLE notifications ADD COLUMN avatar_path TEXT",
         "UPDATE notifications SET avatar_path = media_path, media_path = NULL, media_type = NULL WHERE media_path LIKE '%_avatar%'",
+      ),
+      5 to listOf(
+        // Per-message timestamp from MessagingStyle (stable across notification re-posts).
+        "ALTER TABLE notifications ADD COLUMN msg_time INTEGER",
+        "CREATE INDEX idx_notif_msg_time ON notifications(package_name, msg_time)",
+        // Deletions already handled, so a re-posted "This message was deleted" is not applied twice.
+        "CREATE TABLE IF NOT EXISTS deletion_events (event_key TEXT PRIMARY KEY, created_at INTEGER NOT NULL)",
       ),
     )
 

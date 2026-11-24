@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- Restart the listener watchdog after reboot (ListenerKeeper). -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
   <!-- Needed to resolve launcher apps (names + icons) without QUERY_ALL_PACKAGES. -->
   <queries>
@@ -37,5 +39,25 @@
         android:name="android.service.notification.default_filter_types"
         android:value="conversations|alerting|ongoing|silent" />
     </service>
+
+    <!-- Periodically re-binds the listener if an OEM battery manager killed it. -->
+    <service
+      android:name="expo.modules.keepsake.ListenerKeeper$WatchdogJob"
+      android:exported="false"
+      android:permission="android.permission.BIND_JOB_SERVICE" />
+
+    <!-- Re-binds after reboot and after an app update (some ROMs never rebind on their own). -->
+    <receiver
+      android:name="expo.modules.keepsake.ListenerKeeper$BootReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

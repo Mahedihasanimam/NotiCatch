@@ -85,4 +85,52 @@ object DeletionMatcher {
   }
 
   const val GENERIC_WINDOW_MS = 15 * 60 * 1000L
+
+  /**
+   * Exact placeholder texts chat apps show in place of a message that was deleted for everyone.
+   * Matching is on the WHOLE text (after removing an optional "Sender: " prefix, emoji and
+   * punctuation) — never "contains" — so a normal message such as "I deleted that message"
+   * is not mistaken for a deletion.
+   */
+  private val DELETION_PHRASES = setOf(
+    "this message was deleted",
+    "this message was deleted by sender",
+    "message was deleted",
+    "message deleted",
+    "this message has been deleted",
+    "এই মেসেজটি মুছে ফেলা হয়েছে",
+    "এই বার্তাটি মুছে ফেলা হয়েছে",
+    "এই মেসেজটি মুছে দেওয়া হয়েছে",
+    "এই বার্তাটি মুছে দেওয়া হয়েছে",
+    "মেসেজ মুছে ফেলা হয়েছে",
+    "বার্তা মুছে ফেলা হয়েছে",
+    "यह संदेश हटा दिया गया था",
+    "यह संदेश हटा दिया गया है",
+    "este mensaje fue eliminado",
+    "ce message a été supprimé",
+    "diese nachricht wurde gelöscht",
+    "تم حذف هذه الرسالة",
+    "esta mensagem foi apagada",
+    "pesan ini telah dihapus",
+    "bu mesaj silindi",
+    "сообщение удалено",
+    "questo messaggio è stato eliminato",
+  )
+
+  // Leading/trailing emoji (🚫), variation selectors, punctuation (incl. Bengali "।") and spaces.
+  private val EDGE_JUNK = Regex("""^[\s\p{P}\p{S}\x{FE0F}\x{200D}]+|[\s\p{P}\p{S}\x{FE0F}\x{200D}]+$""")
+
+  // Messenger / Instagram: "Arif unsent a message".
+  private val UNSENT = Regex("""^.{1,40} unsent a message$""")
+
+  fun isDeletionText(raw: String?): Boolean {
+    var s = raw?.trim()?.lowercase() ?: return false
+    if (s.isEmpty() || s.length > 120) return false
+    if (senderPrefix(s) != null) s = s.substring(s.indexOf(':') + 1)
+    s = s.replace(EDGE_JUNK, "").replace(Regex("""\s+"""), " ")
+    if (s.isEmpty()) return false
+    return s in DELETION_PHRASES ||
+      s.startsWith("this message was deleted by ") || // "...by admin Arif"
+      UNSENT.matches(s)
+  }
 }

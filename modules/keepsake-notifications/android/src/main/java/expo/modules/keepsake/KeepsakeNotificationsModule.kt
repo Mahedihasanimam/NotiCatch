@@ -1,28 +1,23 @@
 package expo.modules.keepsake
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
-import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class KeepsakeNotificationsModule : Module() {
   private val context: Context
@@ -72,40 +67,6 @@ class KeepsakeNotificationsModule : Module() {
       }
     }
 
-    AsyncFunction("postTestNotification") {
-      try {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-          ?: return@AsyncFunction false
-        val channelId = "noticatch_test_channel"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-          val channel = NotificationChannel(
-            channelId,
-            "NotiCatch Self-Test",
-            NotificationManager.IMPORTANCE_DEFAULT,
-          ).apply {
-            description = "Notification to test NotiCatch capture functionality"
-          }
-          nm.createNotificationChannel(channel)
-        }
-        val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val builder = NotificationCompat.Builder(context, channelId)
-          .setSmallIcon(android.R.drawable.ic_dialog_info)
-          .setContentTitle("NotiCatch Active")
-          .setContentText("Notification capture is working! Received at $timeStr")
-          .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-          .setAutoCancel(true)
-
-        val extras = Bundle()
-        extras.putBoolean("expo.modules.keepsake.IS_TEST", true)
-        builder.addExtras(extras)
-
-        nm.notify(1001, builder.build())
-        true
-      } catch (e: Exception) {
-        false
-      }
-    }
-
     AsyncFunction("openAccessSettings") {
       val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
         .putExtra(
@@ -129,7 +90,8 @@ class KeepsakeNotificationsModule : Module() {
     }
 
     AsyncFunction("requestRebind") {
-      NotificationListenerService.requestRebind(ComponentName(context, KeepsakeListenerService::class.java))
+      ListenerKeeper.ensureBound(context)
+      ListenerKeeper.scheduleWatchdog(context)
       NotificationStatusManager.updateStatus(context)
     }
 

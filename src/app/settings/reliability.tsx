@@ -12,7 +12,6 @@ import {
   openAccessSettings,
   openAutostartSettings,
   openBatterySettings,
-  postTestNotification,
   requestRebind,
 } from '@/data/repository';
 import { formatRelative } from '@/lib/time';
@@ -175,21 +174,6 @@ export default function ReliabilityScreen() {
           chevron
           onPress={() => void open(openAutostartSettings)}
           last
-        />
-      </Group>
-
-      <Group title="TEST">
-        <Row
-          icon="paper-plane-outline"
-          title="Send test notification"
-          subtitle="It should appear in NotiCatch within a few seconds"
-          chevron
-          last
-          onPress={async () => {
-            const ok = await postTestNotification();
-            showAppToast(ok ? 'Test notification sent' : 'Could not post test notification', ok ? 'success' : 'error');
-            setTimeout(refresh, 1500);
-          }}
         />
       </Group>
     </Screen>

@@ -49,4 +49,23 @@ class DeletionMatcherTest {
     assertNull(DeletionMatcher.senderPrefix("This message was deleted"))
     assertEquals("arif", DeletionMatcher.senderPrefix("Arif: hi"))
   }
+
+  @Test fun deletionPlaceholdersAreDetected() {
+    assertTrue(DeletionMatcher.isDeletionText("This message was deleted"))
+    assertTrue(DeletionMatcher.isDeletionText("🚫 This message was deleted."))
+    assertTrue(DeletionMatcher.isDeletionText("Arif: This message was deleted"))
+    assertTrue(DeletionMatcher.isDeletionText("এই মেসেজটি মুছে ফেলা হয়েছে"))
+    assertTrue(DeletionMatcher.isDeletionText("This message was deleted by admin Rina"))
+    assertTrue(DeletionMatcher.isDeletionText("Arif unsent a message"))
+  }
+
+  @Test fun normalMessagesAreNotDeletions() {
+    assertFalse(DeletionMatcher.isDeletionText(null))
+    assertFalse(DeletionMatcher.isDeletionText(""))
+    assertFalse(DeletionMatcher.isDeletionText("I deleted that message, sorry"))
+    assertFalse(DeletionMatcher.isDeletionText("Why was this message deleted?"))
+    assertFalse(DeletionMatcher.isDeletionText("message ta mukhe dao, deleted kore dio"))
+    assertFalse(DeletionMatcher.isDeletionText("মেসেজটা মুছে দেওয়ার দরকার নেই"))
+    assertFalse(DeletionMatcher.isDeletionText("2 new messages"))
+  }
 }

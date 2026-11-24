@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AppGroup, AppNotificationCard } from '@/components/AppNotificationCard';
 import { CrownIcon } from '@/components/CrownIcon';
 import { PremiumModal } from '@/components/PremiumModal';
+import { ReliabilityBanner } from '@/components/ReliabilityBanner';
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { EmptyState, LoadingState } from '@/components/states';
@@ -465,6 +466,9 @@ export function NotificationsTab() {
           </View>
         </View>
       ) : null}
+
+      {/* 2b. Background-kill warning (Xiaomi, OPPO, vivo, Samsung …) */}
+      <ReliabilityBanner />
 
       {/* 3. Main Notifications Feed */}
       <View style={{ flex: 1, position: 'relative' }}>

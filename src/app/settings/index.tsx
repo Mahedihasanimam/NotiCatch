@@ -6,7 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { showAppConfirm, showAppToast } from '@/components/CustomDialog';
 import { PressableBounce } from '@/components/PressableBounce';
 import { Text } from '@/components/ui';
-import { configureCapture, deleteNotifications, getReliabilityStatus, openAccessSettings, openAppSettings, postTestNotification, queryNotifications } from '@/data/repository';
+import { configureCapture, deleteNotifications, getReliabilityStatus, openAccessSettings, openAppSettings, queryNotifications } from '@/data/repository';
 import { CURRENT_APP_VERSION, checkForUpdate, openPlayStore, useUpdateModal } from '@/lib/appUpdate';
 import { useAccess } from '@/store/access';
 import { useDataVersion } from '@/store/dataVersion';
@@ -286,46 +286,6 @@ export default function SettingsIndexScreen() {
           />
         </View>
 
-        {granted ? (
-          <PressableBounce
-            scaleTo={0.98}
-            onPress={async () => {
-              try {
-                const ok = await postTestNotification();
-                if (ok) {
-                  showAppToast('Test notification posted! Check your status bar & home screen.');
-                  bump();
-                } else {
-                  showAppToast('Could not post test notification', 'error');
-                }
-              } catch {
-                showAppToast('Failed to post test notification', 'error');
-              }
-            }}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              backgroundColor: '#2E323F',
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
-              padding: 14,
-              marginBottom: 20,
-            }}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#0A6C74" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#FFFFFF', fontFamily: 'Manrope_700Bold', fontSize: 14 }}>
-                Send Test Notification
-              </Text>
-              <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                Post a test notification to verify that capture is working properly.
-              </Text>
-            </View>
-            <Ionicons name="paper-plane-outline" size={18} color="#0A6C74" />
-          </PressableBounce>
-        ) : null}
 
         {/* Helpful Unlock Card for Android 13+ / Xiaomi / HyperOS */}
         {!granted ? (
