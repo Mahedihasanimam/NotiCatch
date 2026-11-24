@@ -3,7 +3,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'NotiCatch',
   slug: 'noticatch',
-  owner: 'mahedi25-2',
+  owner: 'teamriskmades-team',
   scheme: 'noticatch',
   version: '1.0.0',
   orientation: 'portrait',
@@ -60,6 +60,8 @@ const config: ExpoConfig = {
         },
       },
     ],
+    // Play Console: portrait lock must not make the screen feature "required" (blocks tablets etc.).
+    './plugins/withOptionalScreenFeatures',
   ],
   experiments: { typedRoutes: true },
   extra: {
