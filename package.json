@@ -47,16 +47,16 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "node init && expo start",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:ci": "jest --ci --coverage",
     "doctor": "expo-doctor",
     "prebuild:android": "expo prebuild --platform android --clean",
-    "build:preview": "eas build --platform android --profile preview",
-    "build:prod": "eas build --platform android --profile production",
-    "build:local": "eas build --platform android --profile preview --local",
+    "build:preview": "node init && eas build --platform android --profile preview",
+    "build:prod": "node init && eas build --platform android --profile production",
+    "build:local": "node init && eas build --platform android --profile preview --local",
     "test:native": "cd android && ./gradlew :keepsake-notifications:testDebugUnitTest"
   },
   "private": true,

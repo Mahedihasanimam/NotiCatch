@@ -10,5 +10,5 @@ web-build/
 *.jks
 coverage/
 build/
-.env*
 expo-env.d.ts
+config.bat
